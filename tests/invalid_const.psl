@@ -1,0 +1,6 @@
+// RUN: %sailgate_check
+
+func Test_Invalid_Const() is
+    // CHECK: Error: Assertion failed:  {> Util::In_SBounds(Univ, S) <}
+    const Invalid : SailGate::IVec<3> := 5;
+end func Test_Invalid_Const

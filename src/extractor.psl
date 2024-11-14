@@ -1,0 +1,82 @@
+import PSC::Reflection::*;
+import SailGate::*;
+
+class SailGate::Extractor is
+    var Pending : Map<Univ_String, Decl>;
+
+    func Base_Type(Desc : Type_Descriptor) -> Type_Descriptor is
+        const Parent := Parent_Type(Desc);
+        if Parent not null then
+            return Base_Type(Parent);
+        end if
+        return Desc;
+    end func Base_Type
+
+    func Type_Is_Entity(Type : Type_Descriptor) -> Boolean is
+        if Type is null then
+            return #false;
+        end if
+        const Base := Base_Type(Type);
+        return not Is_Abstract(Type) and Name(Base) == "SailGate::Entity";
+    end func Type_Is_Entity
+
+    func Decl_Is_Entity(D : Decl) -> Boolean is
+        if Kind(D) != #module then
+            return #false
+        end if
+        const DR := Decl_Region(D);
+        if DR not null then
+            for I in 1 .. Num_Items(DR) forward loop
+                const Next_Item := DR.Nth_Item(I);
+                if Kind(Next_Item) == #type then
+                    return Type_Is_Entity(Descriptor_For_Type(Next_Item));
+                end if
+            end loop
+        end if
+        return #false;
+    end func Decl_Is_Entity
+
+    func Get_Decl_Name(D : Decl) -> Univ_String is
+        if Module_Name(D) is null then
+            return Id(D);
+        end if
+        return Module_Name(D) | "::" | Id(D);
+    end func Get_Decl_Name
+
+    func Visit_Entity(var E : Extractor; D : Decl) is
+        if Is_Spec(D) then
+            Visit_Spec(E, D);
+        else
+            Visit_Impl(E, D);
+        end if
+    end func Visit_Entity
+
+    func Visit_Spec(var E : Extractor; D : Decl) is
+        const Name := Get_Decl_Name(D);
+        E.Pending |= (Key => Name, Value => D);
+    end func Visit_Spec
+
+    func Visit_Impl(var E : Extractor; D : Decl) is
+        const Name := Get_Decl_Name(D);
+        {> Name in E.Pending <}
+        E.Entities |= (Name => Name,
+            Spec => E.Pending[Name],
+            Impl => D);
+        E.Pending -= Name;
+    end func Visit_Impl
+exports
+    func Create() -> Extractor is
+        return with (Entities => [], Pending => []);
+    end func Create
+
+    func Load(var Ex : Extractor; var Env : Environment) -> Univ_Integer is
+        for I in 1 .. Env.Num_Library_Items() forward loop
+            const Item := Env.Nth_Library_Item(I);
+            if Decl_Is_Entity(Item) then
+                Visit_Entity(Ex, Item);
+            end if
+        end loop
+        {> |Ex.Pending| == 0 <}
+        return |Ex.Entities|;
+    end func Load
+end class SailGate::Extractor

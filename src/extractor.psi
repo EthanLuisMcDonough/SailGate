@@ -1,0 +1,24 @@
+import PSC::Reflection::*;
+
+/// Class for interfacing with the reflection environment and
+/// extracting user-defined entities.
+interface SailGate::Extractor<> is
+    /// Relevant information
+    interface Raw_Entity_Data<> is
+        const Name : Univ_String;
+        const Spec : Decl;
+        const Impl : Decl;
+    end interface Raw_Entity_Data
+
+    var Entities : Vector<Raw_Entity_Data>;
+
+    /// Creates extractor with given reflection environment
+    func Create() -> Extractor;
+
+    /// Populates an empty extractor with user-defined entities
+    /// found in reflection environment. Returns number of entities
+    /// found.
+    func Load(var Ex : Extractor {Length(Ex.Entities) == 0};
+        var Env : Environment) -> Univ_Integer;
+end interface SailGate::Extractor
+

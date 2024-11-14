@@ -1,0 +1,302 @@
+/// Mostly empty implementations for RTL types. Most functions will
+/// remain unimplemented because they aren't meant to be run. They're
+/// here so the user can define entities inside ParaSail's syntax.
+/// The methods that are defined are related to compile-time conversion.
+
+class SailGate::Vec_Size is
+exports
+    op ".."(L : Univ_Integer; R : Univ_Integer) -> Vec_Size is
+        return (Length => abs(L - R) + 1);
+    end op ".."
+    op "from_univ"(L : Univ_Integer) -> Vec_Size is
+        return (Length => L);
+    end op "from_univ"
+    op "to_univ"(L : Vec_Size) -> Univ_Integer is
+        return L.Length;
+    end op "to_univ"
+end class SailGate::Vec_Size
+
+class SailGate::Util is
+exports
+    func Is_Logic_Char(S : Univ_Character) -> Boolean is
+        return S == 'X' or S == 'Z' or S == 'T' or
+            S == 'F' or S == '-';
+    end func Is_Logic_Char
+
+    func Is_Bit_Char(S : Univ_Character) -> Boolean is
+        return S == '0' or S == '1';
+    end func Is_Bit_Char
+
+    func Is_Vec_Str(S : Univ_String; SZ : Vec_Size) -> Boolean is
+        return Length(S) == SZ.Length and (for all I in Bounds(S) =>
+            Util::Is_Bit_Char(S[I]));
+    end func Is_Vec_Str
+
+    func In_UBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean is
+        return U >= 0 and U < (2 ** SZ.Length);
+    end func In_UBounds
+
+    func In_SBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean is
+        const Half_Unsigned := (2 ** SZ.Length) / 2;
+        return U >= -Half_Unsigned and U < Half_Unsigned;
+    end func In_SBounds
+end class SailGate::Util
+
+class SailGate::Logic is
+exports
+    op "from_univ"(Univ : Univ_Enumeration) -> Logic is
+        return (Value => Univ);
+    end op "from_univ"
+
+    op "to_univ"(L : Logic) -> Univ_Enumeration is
+        return L.Value
+    end op "to_univ"
+
+    op "from_univ"(Univ : Univ_Integer) -> Logic is
+        case Univ of
+            [0] => return #false
+            [..] => return #true
+        end case
+    end op "from_univ"
+
+    op "from_univ"(S : Univ_Character) -> Logic is
+        case S of
+            ['T'] => return #true
+            ['F'] => return #false
+            ['-'] => return #dont_care
+            ['X'] => return #x
+            ['Z'] => return #z
+        end case
+    end op "from_univ"
+
+    op "not"(L : Logic) -> Logic<> is
+        case L.Value of
+            [#true] => return #false
+            [#false] => return #true
+            [..] => return L
+        end case
+    end op "not"
+
+    op "and"(Left, R : Logic) -> Logic is
+        // NOT YET IMPLEMENTED
+        return #x
+    end op "and"
+
+    op "or"(Left, R : Logic) -> Logic is
+        // NOT YET IMPLEMENTED
+        return #x
+    end op "or"
+
+    op "xor"(Left, R : Logic) -> Logic is
+        // NOT YET IMPLEMENTED
+        return #x
+    end op "xor"
+
+    op "=="(L, R : Logic) -> Boolean is
+        return L.Value == R.Value
+    end op "=="
+
+    op "!="(L, R : Logic) -> Boolean is
+        return L.Value != R.Value
+    end op "!="
+end class SailGate::Logic
+
+class SailGate::Vec is
+    var Internal_Ref : Logic;
+exports
+    op "from_univ"(Univ : Univ_Integer) -> Vec is
+        return (Internal_Ref => 0);
+    end op "from_univ"
+
+    op "from_univ"(U : Univ_String) -> Vec is
+        return (Internal_Ref => 0);
+    end op "from_univ"
+
+    op "not"(L : Vec) -> Vec is
+        return L
+    end op "not"
+
+    op "and"(L, R : Vec) -> Vec is
+        return L
+    end op "and"
+
+    op "or"(L, R : Vec) -> Vec is
+        return L
+    end op "or"
+
+    op "xor"(L, R : Vec) -> Vec is
+        return L
+    end op "xor"
+
+    op "=="(L, R : Vec) -> Boolean is
+        return #false
+    end op "=="
+
+    op "!="(L, R : Vec) -> Boolean is
+        return #false
+    end op "!="
+
+    op "indexing"(M : Vec; Key : Univ_Integer) -> Logic is
+        return #false;
+    end op "indexing"
+
+    op "var_indexing"(ref var M : Vec; Key : Univ_Integer) -> ref var Logic is
+        return M.Internal_Ref;
+    end op "var_indexing"
+
+    op "[]"() -> Vec is
+        return (Internal_Ref => 0);
+    end op "[]"
+end class SailGate::Vec
+
+class SailGate::IVec is
+    var Internal_Ref : Logic;
+exports
+    op "from_univ"(Univ : Univ_Integer) -> IVec is
+        return (Internal_Ref => 0);
+    end op "from_univ"
+
+    op "from_univ"(U : Univ_String) -> IVec is
+        return (Internal_Ref => 0);
+    end op "from_univ"
+
+    op "not"(L : IVec) -> IVec is
+        return L
+    end op "not"
+
+    op "and"(L, R : IVec) -> IVec is
+        return L
+    end op "and"
+
+    op "or"(L, R : IVec) -> IVec is
+        return L
+    end op "or"
+
+    op "xor"(L, R : IVec) -> IVec is
+        return L
+    end op "xor"
+
+    op "=="(L, R : IVec) -> Boolean is
+        return #false
+    end op "=="
+
+    op "!="(L, R : IVec) -> Boolean is
+        return #false
+    end op "!="
+
+    op ">>"(L, R : IVec) -> IVec is
+        return L
+    end op ">>"
+
+    op "<<"(L, R : IVec) -> IVec is
+        return L
+    end op "<<"
+
+    op "+"(L, R : IVec) -> IVec is
+        return L
+    end op "+"
+
+    op "-"(L, R : IVec) -> IVec is
+        return L
+    end op "-"
+
+    op "*"(L, R : IVec) -> IVec is
+        return L
+    end op "*"
+
+    op "/"(L, R : IVec) -> IVec is
+        return L
+    end op "/"
+
+    op "mod"(L, R : IVec) -> IVec is
+        return L
+    end op "mod"
+
+    op "indexing"(M : IVec; Key : Univ_Integer) -> Logic is
+        return #false;
+    end op "indexing"
+
+    op "var_indexing"(ref var M : IVec; Key : Univ_Integer) -> ref var Logic is
+        return M.Internal_Ref;
+    end op "var_indexing"
+
+    op "[]"() -> IVec is
+        return (Internal_Ref => 0);
+    end op "[]"
+end class SailGate::IVec
+
+class SailGate::UVec is
+    var Internal_Ref : Logic;
+exports
+    op "from_univ"(Univ : Univ_Integer) -> UVec is
+        return (Internal_Ref => 0);
+    end op "from_univ"
+
+    op "from_univ"(U : Univ_String) -> UVec is
+        return (Internal_Ref => 0);
+    end op "from_univ"
+
+    op "not"(L : UVec) -> UVec is
+        return L
+    end op "not"
+
+    op "and"(L, R : UVec) -> UVec is
+        return L
+    end op "and"
+
+    op "or"(L, R : UVec) -> UVec is
+        return L
+    end op "or"
+
+    op "xor"(L, R : UVec) -> UVec is
+        return L
+    end op "xor"
+
+    op "=="(L, R : UVec) -> Boolean is
+        return #false
+    end op "=="
+
+    op "!="(L, R : UVec) -> Boolean is
+        return #false
+    end op "!="
+
+    op ">>"(L, R : UVec) -> UVec is
+        return L
+    end op ">>"
+
+    op "<<"(L, R : UVec) -> UVec is
+        return L
+    end op "<<"
+
+    op "+"(L, R : UVec) -> UVec is
+        return L
+    end op "+"
+
+    op "-"(L, R : UVec) -> UVec is
+        return L
+    end op "-"
+
+    op "*"(L, R : UVec) -> UVec is
+        return L
+    end op "*"
+
+    op "/"(L, R : UVec) -> UVec is
+        return L
+    end op "/"
+
+    op "mod"(L, R : UVec) -> UVec is
+        return L
+    end op "mod"
+
+    op "indexing"(M : UVec; Key : Univ_Integer) -> Logic is
+        return #false;
+    end op "indexing"
+
+    op "var_indexing"(ref var M : UVec; Key : Univ_Integer) -> ref var Logic is
+        return M.Internal_Ref;
+    end op "var_indexing"
+
+    op "[]"() -> UVec is
+        return (Internal_Ref => 0);
+    end op "[]"
+end class SailGate::UVec

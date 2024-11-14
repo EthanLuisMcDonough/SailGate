@@ -1,0 +1,150 @@
+/// SailGate type library
+/// These are the types used by the end user to describe digital circuits
+
+/// Type for expressing vector ranges
+interface SailGate::Vec_Size<> is
+    const Length : Integer<1..2**31-1>;
+    op ".."(L : Univ_Integer {L >= 0}; R : Univ_Integer {R >= 0}) -> Vec_Size;
+    op "from_univ"(L: Univ_Integer {L >= 1}) -> Vec_Size;
+    op "to_univ"(L : Vec_Size) -> Univ_Integer;
+end interface SailGate::Vec_Size
+
+/// Utility functions used for checking conversion
+interface SailGate::Util<> is
+    func Is_Logic_Char(S : Univ_Character) -> Boolean;
+    func Is_Bit_Char(S : Univ_Character) -> Boolean;
+    func Is_Vec_Str(S : Univ_String; SZ : Vec_Size) -> Boolean;
+    func In_UBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean;
+    func In_SBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean;
+end interface SailGate::Util
+
+/// Base RTL type. Outlines basic operations all RTL type should have
+abstract interface SailGate::Rtl_Type<> is
+    op "not"(L : Rtl_Type) -> Rtl_Type;
+    op "and"(Left, R : Rtl_Type) -> Rtl_Type;
+    op "or"(Left, R : Rtl_Type) -> Rtl_Type;
+    op "xor"(Left, R : Rtl_Type) -> Rtl_Type;
+    op "=="(L, R : Rtl_Type) -> Boolean;
+    op "!="(L, R : Rtl_Type) -> Boolean;
+end interface SailGate::Rtl_Type
+
+/// Base scalar type
+abstract interface SailGate::Scalar_Type<> extends SailGate::Rtl_Type<> is
+end interface SailGate::Scalar_Type
+
+/// Base vector type
+abstract interface SailGate::Vec_Rtl_Type<S : Vec_Size<>; T is Scalar_Type<>>
+        extends SailGate::Rtl_Type<> is
+    op "not"(L : Vec_Rtl_Type) -> Vec_Rtl_Type;
+    op "and"(L, R : Vec_Rtl_Type) -> Vec_Rtl_Type;
+    op "or"(L, R : Vec_Rtl_Type) -> Vec_Rtl_Type;
+    op "xor"(L, R : Vec_Rtl_Type) -> Vec_Rtl_Type;
+    op "=="(L, R : Vec_Rtl_Type) -> Boolean;
+    op "!="(L, R : Vec_Rtl_Type) -> Boolean;
+    op "indexing"(M : Vec_Rtl_Type; Key : Univ_Integer) -> T;
+    op "var_indexing"(ref var M : Vec_Rtl_Type; Key : Univ_Integer) -> ref var T;
+    op "[]"() -> Vec_Rtl_Type;
+end interface SailGate::Vec_Rtl_Type
+
+/// Base logical unit. Represents a wire signal. This can be 0, 1, unknown,
+/// high-impedance, or don't care. Each value corresponds to a YOSYS bit value
+interface SailGate::Logic<> extends SailGate::Scalar_Type<> is
+    type Logic_Val is Enum<[ #false, #true, #x, #z, #dont_care ]>;
+    const Value : Logic_Val;
+
+    op "from_univ"(Univ : Univ_Integer { Univ in 0..1 }) -> Logic;
+    op "from_univ"(S : Univ_Character {Util::Is_Logic_Char(S)}) -> Logic;
+    op "from_univ"(Univ : Univ_Enumeration)
+        {Univ in Logic_Val::Range()} -> Logic;
+    op "to_univ"(L : Logic) -> Univ_Enumeration;
+
+    op "not"(L : Logic) -> Logic;
+    op "and"(Left, R : Logic) -> Logic;
+    op "or"(Left, R : Logic) -> Logic;
+    op "xor"(Left, R : Logic) -> Logic;
+    op "=="(L, R : Logic) -> Boolean;
+    op "!="(L, R : Logic) -> Boolean;
+end interface SailGate::Logic
+
+/// Base type for logic vectors
+abstract interface SailGate::Base_Logic_Vec<S : Vec_Size<>> extends Vec_Rtl_Type<S, Logic<>> is
+end interface SailGate::Base_Logic_Vec
+
+/// Base type for signed logic vectors
+abstract interface SailGate::Base_Int_Vec<S : Vec_Size<>> extends Base_Logic_Vec<S> is
+    op ">>"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "<<"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "+"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "-"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "*"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "/"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "mod"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+end interface SailGate::Base_Int_Vec
+
+/// Realized logic vector type. Represents a bundle of wires of length S.
+/// Corresponds with logic_vec in VHDL.
+interface SailGate::Vec<S : Vec_Size<>> extends Base_Logic_Vec<S> is
+    op "not"(L : Vec) -> Vec;
+    op "and"(L, R : Vec) -> Vec;
+    op "or"(L, R : Vec) -> Vec;
+    op "xor"(L, R : Vec) -> Vec;
+    op "=="(L, R : Vec) -> Boolean;
+    op "!="(L, R : Vec) -> Boolean;
+    op "indexing"(M : Vec; Key : Univ_Integer) -> Logic;
+    op "var_indexing"(ref var M : Vec; Key : Univ_Integer) -> ref var Logic;
+    op "[]"() -> Vec;
+    op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, S)}) -> Vec;
+    op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> Vec;
+end interface SailGate::Vec
+
+/// Represents a logic vector that carries a signed integer value.
+/// Allows signed arithmetic operations to be applied to value.
+interface SailGate::IVec<S : Vec_Size<>> extends Base_Int_Vec<S> is
+    op "not"(L : IVec) -> IVec;
+    op "and"(L, R : IVec) -> IVec;
+    op "or"(L, R : IVec) -> IVec;
+    op "xor"(L, R : IVec) -> IVec;
+    op "=="(L, R : IVec) -> Boolean;
+    op "!="(L, R : IVec) -> Boolean;
+    op "indexing"(M : IVec; Key : Univ_Integer) -> Logic;
+    op "var_indexing"(ref var M : IVec; Key : Univ_Integer) -> ref var Logic;
+    op "[]"() -> IVec;
+    op ">>"(L, R : IVec) -> IVec;
+    op "<<"(L, R : IVec) -> IVec;
+    op "+"(L, R : IVec) -> IVec;
+    op "-"(L, R : IVec) -> IVec;
+    op "*"(L, R : IVec) -> IVec;
+    op "/"(L, R : IVec) -> IVec;
+    op "mod"(L, R : IVec) -> IVec;
+    op "from_univ"(Univ : Univ_Integer {Util::In_SBounds(Univ, S)}) -> IVec;
+    op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> IVec;
+end interface SailGate::IVec
+
+/// Represents a logic vector that carries an unsigned integer value.
+/// Allows unsigned arithmetic operations to be applied to value.
+interface SailGate::UVec<S : Vec_Size<>> extends Base_Int_Vec<S> is
+    op "not"(L : UVec) -> UVec;
+    op "and"(L, R : UVec) -> UVec;
+    op "or"(L, R : UVec) -> UVec;
+    op "xor"(L, R : UVec) -> UVec;
+    op "=="(L, R : UVec) -> Boolean;
+    op "!="(L, R : UVec) -> Boolean;
+    op "indexing"(M : UVec; Key : Univ_Integer) -> Logic;
+    op "var_indexing"(ref var M : UVec; Key : Univ_Integer) -> ref var Logic;
+    op "[]"() -> UVec;
+    op ">>"(L, R : UVec) -> UVec;
+    op "<<"(L, R : UVec) -> UVec;
+    op "+"(L, R : UVec) -> UVec;
+    op "-"(L, R : UVec) -> UVec;
+    op "*"(L, R : UVec) -> UVec;
+    op "/"(L, R : UVec) -> UVec;
+    op "mod"(L, R : UVec) -> UVec;
+    op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, S)}) -> UVec;
+    op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> UVec;
+end interface SailGate::UVec
+
+/// User defined entity module. Abstract run method describes
+/// entity behavior.
+abstract interface SailGate::Entity<> is
+    func Run(var E : Entity);
+end interface SailGate::Entity

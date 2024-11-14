@@ -1,0 +1,6 @@
+init_env.sh
+*.lst
+*.err
+local_test
+.lit_test_times.txt
+Output

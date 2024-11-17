@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
 
 # Minimal SailGate driver script
-# assumes interp.csh and parasail_main are both in path
+# assumes interp.csh is in path
 
-ROOT=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ROOT=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd );
+HEADER_FILES=();
+SOURCE_FILES=();
 
-interp.csh "$ROOT/src/driver.psi" "$ROOT/src/prelude/prelude.psi" \
-    "$ROOT/src/prelude/util.psi" "$ROOT/src/prelude/scalar.psi" \
-    "$ROOT/src/prelude/vec.psi" "$ROOT/src/prelude/module.psi" \
-    "$ROOT/src/sema/sema.psi" "$ROOT/src/sema/extractor.psi" \
-    "$ROOT/src/prelude/*.psl" "$ROOT/src/sema/*.psl" \
-    "$ROOT/src/*.psl" "$@" -command Main
+read_dir() {
+    if [[ $1 == *.psi ]]; then
+        HEADER_FILES+=("$1");
+    else
+        for item in $(cat "$1/psc_list.txt"); do
+            read_dir "$1/$item";
+        done
+        SOURCE_FILES+=("$1/*.psl");
+    fi
+} 
+
+read_dir "$ROOT/src"
+
+interp.csh "${HEADER_FILES[@]}" "${SOURCE_FILES[@]}" "$@" -command Main

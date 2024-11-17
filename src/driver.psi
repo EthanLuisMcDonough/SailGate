@@ -1,6 +1,3 @@
-interface SailGate<> is
-end interface SailGate
-
 func Main(Args : Basic_Array<Univ_String>) is
     Println("DRIVER FUNCTION");
 end func Main

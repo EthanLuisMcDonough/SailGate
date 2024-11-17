@@ -1,7 +1,7 @@
 import PSC::Reflection::*;
-import SailGate::*;
+import SailGate::Sema::*;
 
-class SailGate::Extractor is
+class SailGate::Sema::Extractor is
     var Pending : Map<Univ_String, Decl>;
 
     func Base_Type(Desc : Type_Descriptor) -> Type_Descriptor is
@@ -79,4 +79,4 @@ exports
         {> |Ex.Pending| == 0 <}
         return |Ex.Entities|;
     end func Load
-end class SailGate::Extractor
+end class SailGate::Sema::Extractor

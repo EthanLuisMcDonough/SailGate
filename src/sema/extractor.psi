@@ -2,7 +2,7 @@ import PSC::Reflection::*;
 
 /// Class for interfacing with the reflection environment and
 /// extracting user-defined entities.
-interface SailGate::Extractor<> is
+interface SailGate::Sema::Extractor<> is
     /// Relevant information
     interface Raw_Entity_Data<> is
         const Name : Univ_String;
@@ -20,5 +20,5 @@ interface SailGate::Extractor<> is
     /// found.
     func Load(var Ex : Extractor {Length(Ex.Entities) == 0};
         var Env : Environment) -> Univ_Integer;
-end interface SailGate::Extractor
+end interface SailGate::Sema::Extractor
 

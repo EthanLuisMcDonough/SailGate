@@ -1,6 +1,7 @@
 /// SailGate type library
 /// These are the types used by the end user to describe digital circuits
 interface SailGate::Prelude<> is
+    type Vec_Size is Integer<1..2**31-1>;
 end interface SailGate::Prelude
 
 /// Base RTL type. Outlines basic operations all RTL type should have

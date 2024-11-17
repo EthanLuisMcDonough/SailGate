@@ -1,18 +1,5 @@
 /// Implementations for utility types and functions
 
-class SailGate::Prelude::Vec_Size is
-exports
-    op ".."(L : Univ_Integer; R : Univ_Integer) -> Vec_Size is
-        return (Length => abs(L - R) + 1);
-    end op ".."
-    op "from_univ"(L : Univ_Integer) -> Vec_Size is
-        return (Length => L);
-    end op "from_univ"
-    op "to_univ"(L : Vec_Size) -> Univ_Integer is
-        return L.Length;
-    end op "to_univ"
-end class SailGate::Prelude::Vec_Size
-
 class SailGate::Prelude::Util is
 exports
     func Is_Logic_Char(S : Univ_Character) -> Boolean is
@@ -25,16 +12,16 @@ exports
     end func Is_Bit_Char
 
     func Is_Vec_Str(S : Univ_String; SZ : Vec_Size) -> Boolean is
-        return Length(S) == SZ.Length and (for all I in Bounds(S) =>
+        return Length(S) == SZ and (for all I in Bounds(S) =>
             Util::Is_Bit_Char(S[I]));
     end func Is_Vec_Str
 
     func In_UBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean is
-        return U >= 0 and U < (2 ** SZ.Length);
+        return U >= 0 and U < (2 ** SZ);
     end func In_UBounds
 
     func In_SBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean is
-        const Half_Unsigned := (2 ** SZ.Length) / 2;
+        const Half_Unsigned := (2 ** SZ) / 2;
         return U >= -Half_Unsigned and U < Half_Unsigned;
     end func In_SBounds
 end class SailGate::Prelude::Util

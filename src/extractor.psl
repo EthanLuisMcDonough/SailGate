@@ -17,7 +17,7 @@ class SailGate::Extractor is
             return #false;
         end if
         const Base := Base_Type(Type);
-        return not Is_Abstract(Type) and Name(Base) == "SailGate::Entity";
+        return not Is_Abstract(Type) and Name(Base) == "SailGate::Prelude::Entity";
     end func Type_Is_Entity
 
     func Decl_Is_Entity(D : Decl) -> Boolean is

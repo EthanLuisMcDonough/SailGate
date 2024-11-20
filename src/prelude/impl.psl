@@ -6,7 +6,7 @@
 class SailGate::Prelude::Logic is
 exports
     op "from_univ"(Univ : Univ_Enumeration) -> Logic is
-        return (Value => Univ);
+        return with (Value => Univ);
     end op "from_univ"
 
     op "to_univ"(L : Logic) -> Univ_Enumeration is
@@ -30,7 +30,7 @@ exports
         end case
     end op "from_univ"
 
-    op "not"(L : Logic) -> Logic<> is
+    op "not"(L : Logic) -> Logic is
         case L.Value of
             [#true] => return #false
             [#false] => return #true
@@ -60,10 +60,14 @@ exports
     op "!="(L, R : Logic) -> Boolean is
         return L.Value != R.Value
     end op "!="
+
+    func Sync(A : Logic<Async>) -> Logic is
+        return with (Value => A.Value);
+    end func Sync
 end class SailGate::Prelude::Logic
 
 class SailGate::Prelude::Vec is
-    var Internal_Ref : Logic;
+    var Internal_Ref : Logic<D>;
 exports
     op "from_univ"(Univ : Univ_Integer) -> Vec is
         return (Internal_Ref => 0);
@@ -97,21 +101,25 @@ exports
         return #false
     end op "!="
 
-    op "indexing"(M : Vec; Key : Univ_Integer) -> Logic is
+    op "indexing"(M : Vec; Key : Univ_Integer) -> Logic<D> is
         return #false;
     end op "indexing"
 
-    op "var_indexing"(ref var M : Vec; Key : Univ_Integer) -> ref var Logic is
+    op "var_indexing"(ref var M : Vec; Key : Univ_Integer) -> ref var Logic<D> is
         return M.Internal_Ref;
     end op "var_indexing"
 
     op "[]"() -> Vec is
         return (Internal_Ref => 0);
     end op "[]"
+
+    func Sync(A : Vec<S, Async>) -> Vec is
+        return with (Internal_Ref => Sync(A.Internal_Ref));
+    end func Sync
 end class SailGate::Prelude::Vec
 
 class SailGate::Prelude::IVec is
-    var Internal_Ref : Logic;
+    var Internal_Ref : Logic<D>;
 exports
     op "from_univ"(Univ : Univ_Integer) -> IVec is
         return (Internal_Ref => 0);
@@ -173,21 +181,25 @@ exports
         return L
     end op "mod"
 
-    op "indexing"(M : IVec; Key : Univ_Integer) -> Logic is
+    op "indexing"(M : IVec; Key : Univ_Integer) -> Logic<D> is
         return #false;
     end op "indexing"
 
-    op "var_indexing"(ref var M : IVec; Key : Univ_Integer) -> ref var Logic is
+    op "var_indexing"(ref var M : IVec; Key : Univ_Integer) -> ref var Logic<D> is
         return M.Internal_Ref;
     end op "var_indexing"
 
     op "[]"() -> IVec is
         return (Internal_Ref => 0);
     end op "[]"
+
+    func Sync(A : IVec<S, Async>) -> IVec is
+        return with (Internal_Ref => Sync(A.Internal_Ref));
+    end func Sync
 end class SailGate::Prelude::IVec
 
 class SailGate::Prelude::UVec is
-    var Internal_Ref : Logic;
+    var Internal_Ref : Logic<D>;
 exports
     op "from_univ"(Univ : Univ_Integer) -> UVec is
         return (Internal_Ref => 0);
@@ -249,15 +261,19 @@ exports
         return L
     end op "mod"
 
-    op "indexing"(M : UVec; Key : Univ_Integer) -> Logic is
+    op "indexing"(M : UVec; Key : Univ_Integer) -> Logic<D> is
         return #false;
     end op "indexing"
 
-    op "var_indexing"(ref var M : UVec; Key : Univ_Integer) -> ref var Logic is
+    op "var_indexing"(ref var M : UVec; Key : Univ_Integer) -> ref var Logic<D> is
         return M.Internal_Ref;
     end op "var_indexing"
 
     op "[]"() -> UVec is
         return (Internal_Ref => 0);
     end op "[]"
+
+    func Sync(A : UVec<S, Async>) -> UVec is
+        return with (Internal_Ref => Sync(A.Internal_Ref));
+    end func Sync
 end class SailGate::Prelude::UVec

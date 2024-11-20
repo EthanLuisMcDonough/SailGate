@@ -1,0 +1,17 @@
+abstract interface SailGate::Prelude::Domain<> is
+end interface SailGate::Prelude::Domain
+
+interface SailGate::Prelude::Async<> extends Domain<> is
+end interface SailGate::Prelude::Async
+
+abstract interface SailGate::Prelude::Clock<>
+    extends Domain<> is
+end interface SailGate::Prelude::Clock
+
+abstract interface SailGate::Prelude::Clock_Reset<>
+    extends Clock<> is
+end interface SailGate::Prelude::Clock_Reset
+
+abstract interface SailGate::Prelude::Clock_Reset_En<>
+    extends Clock_Reset<> is
+end interface SailGate::Prelude::Clock_Reset_En

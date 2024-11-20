@@ -1,11 +1,12 @@
 /// Base scalar type
-abstract interface SailGate::Prelude::Scalar_Type<>
-    extends SailGate::Prelude::Rtl_Type<> is
+abstract interface SailGate::Prelude::Scalar_Type<D is Domain<>>
+    extends SailGate::Prelude::Rtl_Type<D> is
 end interface SailGate::Prelude::Scalar_Type
 
 /// Base logical unit. Represents a wire signal. This can be 0, 1, unknown,
 /// high-impedance, or don't care. Each value corresponds to a YOSYS bit value
-interface SailGate::Prelude::Logic<> extends SailGate::Prelude::Scalar_Type<> is
+interface SailGate::Prelude::Logic<D is Domain<>>
+        extends SailGate::Prelude::Scalar_Type<D> is
     type Logic_Val is Enum<[ #false, #true, #x, #z, #dont_care ]>;
     const Value : Logic_Val;
 
@@ -21,4 +22,6 @@ interface SailGate::Prelude::Logic<> extends SailGate::Prelude::Scalar_Type<> is
     op "xor"(Left, R : Logic) -> Logic;
     op "=="(L, R : Logic) -> Boolean;
     op "!="(L, R : Logic) -> Boolean;
+
+    func Sync(A : Logic<Async>) -> Logic;
 end interface SailGate::Prelude::Logic

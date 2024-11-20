@@ -1,0 +1,9 @@
+/// Base RTL type. Outlines basic operations all RTL type should have
+abstract interface SailGate::Prelude::Rtl_Type<D is Domain<>> is
+    op "not"(L : Rtl_Type) -> Rtl_Type;
+    op "and"(Left, R : Rtl_Type) -> Rtl_Type;
+    op "or"(Left, R : Rtl_Type) -> Rtl_Type;
+    op "xor"(Left, R : Rtl_Type) -> Rtl_Type;
+    op "=="(L, R : Rtl_Type) -> Boolean;
+    op "!="(L, R : Rtl_Type) -> Boolean;
+end interface SailGate::Prelude::Rtl_Type

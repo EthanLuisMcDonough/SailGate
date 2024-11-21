@@ -1,5 +1,9 @@
-/// User defined entity module. Abstract run method describes
+/// User defined entity output
+abstract interface SailGate::Prelude::Output<> is
+end interface SailGate::Prelude::Output
+
+/// User defined entity. Abstract run method describes
 /// entity behavior.
-abstract interface SailGate::Prelude::Entity<> is
-    func Run(var E : Entity);
+abstract interface SailGate::Prelude::Entity<O is Output<>> is
+    func Run(E : Entity) -> O;
 end interface SailGate::Prelude::Entity

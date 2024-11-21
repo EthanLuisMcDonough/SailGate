@@ -1,0 +1,20 @@
+import SailGate::Sema::Util::*;
+import PSC::Reflection::*;
+
+class SailGate::Sema::Util is
+exports
+    func Base_Type(Desc : Type_Descriptor) -> Type_Descriptor is
+        const Parent := Parent_Type(Desc);
+        if Parent not null then
+            return Base_Type(Parent);
+        end if
+        return Desc;
+    end func Base_Type
+
+    func Get_Decl_Name(D : Decl) -> Univ_String is
+        if Module_Name(D) is null then
+            return Id(D);
+        end if
+        return Module_Name(D) | "::" | Id(D);
+    end func Get_Decl_Name
+end class SailGate::Sema::Util

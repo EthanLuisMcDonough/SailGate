@@ -1,0 +1,11 @@
+import PSC::Reflection::*;
+
+/// Utility functions for navigating reflection envrionment
+interface SailGate::Sema::Util<> is
+    /// Gets the base type for a type descriptor. Returns self if
+    /// the provided type has no parent.
+    func Base_Type(Desc : Type_Descriptor) -> Type_Descriptor;
+
+    /// Gets full name for decl
+    func Get_Decl_Name(D : Decl) -> Univ_String;
+end interface SailGate::Sema::Util

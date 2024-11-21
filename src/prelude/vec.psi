@@ -18,19 +18,6 @@ abstract interface SailGate::Prelude::Base_Logic_Vec
     <S : Vec_Size; D is Async<>> extends Vec_Rtl_Type<S, D, Logic<D>> is
 end interface SailGate::Prelude::Base_Logic_Vec
 
-/// Base type for signed logic vectors
-abstract interface SailGate::Prelude::Base_Int_Vec
-        <S : Vec_Size; D is Async<>>
-        extends Base_Logic_Vec<S, D> is
-    op ">>"(L, R : Base_Int_Vec) -> Base_Int_Vec;
-    op "<<"(L, R : Base_Int_Vec) -> Base_Int_Vec;
-    op "+"(L, R : Base_Int_Vec) -> Base_Int_Vec;
-    op "-"(L, R : Base_Int_Vec) -> Base_Int_Vec;
-    op "*"(L, R : Base_Int_Vec) -> Base_Int_Vec;
-    op "/"(L, R : Base_Int_Vec) -> Base_Int_Vec;
-    op "mod"(L, R : Base_Int_Vec) -> Base_Int_Vec;
-end interface SailGate::Prelude::Base_Int_Vec
-
 /// Realized logic vector type. Represents a bundle of wires of length S.
 /// Corresponds with logic_vec in VHDL.
 interface SailGate::Prelude::Vec<S : Vec_Size; D is Async<>>
@@ -47,6 +34,20 @@ interface SailGate::Prelude::Vec<S : Vec_Size; D is Async<>>
     op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, S)}) -> Vec;
     op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> Vec;
 end interface SailGate::Prelude::Vec
+
+/// Base type for signed logic vectors
+abstract interface SailGate::Prelude::Base_Int_Vec
+        <S : Vec_Size; D is Async<>>
+        extends Base_Logic_Vec<S, D> is
+    op ">>"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "<<"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "+"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "-"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "*"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "/"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    op "mod"(L, R : Base_Int_Vec) -> Base_Int_Vec;
+    func Logic_Vec(V : Base_Int_Vec) -> Vec<S, D>;
+end interface SailGate::Prelude::Base_Int_Vec
 
 /// Represents a logic vector that carries a signed integer value.
 /// Allows signed arithmetic operations to be applied to value.
@@ -70,11 +71,12 @@ interface SailGate::Prelude::IVec<S : Vec_Size; D is Async<>>
     op "mod"(L, R : IVec) -> IVec;
     op "from_univ"(Univ : Univ_Integer {Util::In_SBounds(Univ, S)}) -> IVec;
     op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> IVec;
+    func Logic_Vec(V : IVec) -> Vec<S, D>;
 end interface SailGate::Prelude::IVec
 
 /// Represents a logic vector that carries an unsigned integer value.
 /// Allows unsigned arithmetic operations to be applied to value.
-interface SailGate::Prelude::UVec <S : Vec_Size; D is Async<>>
+interface SailGate::Prelude::UVec<S : Vec_Size; D is Async<>>
         extends Base_Int_Vec<S, D> is
     op "not"(L : UVec) -> UVec;
     op "and"(L, R : UVec) -> UVec;
@@ -94,4 +96,5 @@ interface SailGate::Prelude::UVec <S : Vec_Size; D is Async<>>
     op "mod"(L, R : UVec) -> UVec;
     op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, S)}) -> UVec;
     op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> UVec;
+    func Logic_Vec(V : UVec) -> Vec<S, D>;
 end interface SailGate::Prelude::UVec

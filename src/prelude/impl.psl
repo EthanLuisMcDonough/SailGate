@@ -60,10 +60,6 @@ exports
     op "!="(L, R : Logic) -> Boolean is
         return L.Value != R.Value
     end op "!="
-
-    func Sync(A : Logic<Async>) -> Logic is
-        return with (Value => A.Value);
-    end func Sync
 end class SailGate::Prelude::Logic
 
 class SailGate::Prelude::Vec is
@@ -112,10 +108,6 @@ exports
     op "[]"() -> Vec is
         return (Internal_Ref => 0);
     end op "[]"
-
-    func Sync(A : Vec<S, Async>) -> Vec is
-        return with (Internal_Ref => Sync(A.Internal_Ref));
-    end func Sync
 end class SailGate::Prelude::Vec
 
 class SailGate::Prelude::IVec is
@@ -192,10 +184,6 @@ exports
     op "[]"() -> IVec is
         return (Internal_Ref => 0);
     end op "[]"
-
-    func Sync(A : IVec<S, Async>) -> IVec is
-        return with (Internal_Ref => Sync(A.Internal_Ref));
-    end func Sync
 end class SailGate::Prelude::IVec
 
 class SailGate::Prelude::UVec is
@@ -272,8 +260,4 @@ exports
     op "[]"() -> UVec is
         return (Internal_Ref => 0);
     end op "[]"
-
-    func Sync(A : UVec<S, Async>) -> UVec is
-        return with (Internal_Ref => Sync(A.Internal_Ref));
-    end func Sync
 end class SailGate::Prelude::UVec

@@ -62,6 +62,13 @@ exports
     end op "!="
 end class SailGate::Prelude::Logic
 
+class SailGate::Prelude::Vec_Index is
+exports
+    op "from_univ"(U : Univ_Integer) -> Vec_Index is
+        return with (Val => U);
+    end op "from_univ"
+end class SailGate::Prelude::Vec_Index
+
 class SailGate::Prelude::Vec is
     var Internal_Ref : Logic<D>;
 exports
@@ -97,11 +104,11 @@ exports
         return #false
     end op "!="
 
-    op "indexing"(M : Vec; Key : Univ_Integer) -> Logic<D> is
+    op "indexing"(M : Vec; Key : Vec_Index<S>) -> Logic<D> is
         return #false;
     end op "indexing"
 
-    op "var_indexing"(ref var M : Vec; Key : Univ_Integer) -> ref var Logic<D> is
+    op "var_indexing"(ref var M : Vec; Key : Vec_Index<S>) -> ref var Logic<D> is
         return M.Internal_Ref;
     end op "var_indexing"
 
@@ -173,17 +180,21 @@ exports
         return L
     end op "mod"
 
-    op "indexing"(M : IVec; Key : Univ_Integer) -> Logic<D> is
+    op "indexing"(M : IVec; Key : Vec_Index<S>) -> Logic<D> is
         return #false;
     end op "indexing"
 
-    op "var_indexing"(ref var M : IVec; Key : Univ_Integer) -> ref var Logic<D> is
+    op "var_indexing"(ref var M : IVec; Key : Vec_Index<S>) -> ref var Logic<D> is
         return M.Internal_Ref;
     end op "var_indexing"
 
     op "[]"() -> IVec is
         return (Internal_Ref => 0);
     end op "[]"
+
+    func Logic_Vec(V : IVec) -> Vec<S, D> is
+        return (Internal_Ref => 0);
+    end func Logic_Vec
 end class SailGate::Prelude::IVec
 
 class SailGate::Prelude::UVec is
@@ -249,15 +260,19 @@ exports
         return L
     end op "mod"
 
-    op "indexing"(M : UVec; Key : Univ_Integer) -> Logic<D> is
+    op "indexing"(M : UVec; Key : Vec_Index<S>) -> Logic<D> is
         return #false;
     end op "indexing"
 
-    op "var_indexing"(ref var M : UVec; Key : Univ_Integer) -> ref var Logic<D> is
+    op "var_indexing"(ref var M : UVec; Key : Vec_Index<S>) -> ref var Logic<D> is
         return M.Internal_Ref;
     end op "var_indexing"
 
     op "[]"() -> UVec is
         return (Internal_Ref => 0);
     end op "[]"
+
+    func Logic_Vec(V : UVec) -> Vec<S, D> is
+        return (Internal_Ref => 0);
+    end func Logic_Vec
 end class SailGate::Prelude::UVec

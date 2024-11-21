@@ -1,0 +1,8 @@
+class Counter_2Bit::In is
+exports
+    func Run(E : In) -> Out<D> is
+        var Counter : UVec<2, D> := 0;
+        Counter := Counter + 1;
+        return with (Value => Logic_Vec(Counter));
+    end func Run
+end class Counter_2Bit::In

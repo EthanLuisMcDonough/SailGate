@@ -20,6 +20,5 @@ interface SailGate::Prelude::Logic<D is Async<>>
     op "and"(Left, R : Logic) -> Logic;
     op "or"(Left, R : Logic) -> Logic;
     op "xor"(Left, R : Logic) -> Logic;
-    op "=="(L, R : Logic) -> Boolean;
-    op "!="(L, R : Logic) -> Boolean;
+    op "=?"(L, R : Logic) -> Ordering;
 end interface SailGate::Prelude::Logic

@@ -4,6 +4,5 @@ abstract interface SailGate::Prelude::Rtl_Type<D is Async<>> is
     op "and"(Left, R : Rtl_Type) -> Rtl_Type;
     op "or"(Left, R : Rtl_Type) -> Rtl_Type;
     op "xor"(Left, R : Rtl_Type) -> Rtl_Type;
-    op "=="(L, R : Rtl_Type) -> Boolean;
-    op "!="(L, R : Rtl_Type) -> Boolean;
+    op "=?"(L, R : Rtl_Type) -> Ordering;
 end interface SailGate::Prelude::Rtl_Type

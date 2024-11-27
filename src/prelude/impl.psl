@@ -53,13 +53,9 @@ exports
         return #x
     end op "xor"
 
-    op "=="(L, R : Logic) -> Boolean is
-        return L.Value == R.Value
-    end op "=="
-
-    op "!="(L, R : Logic) -> Boolean is
-        return L.Value != R.Value
-    end op "!="
+    op "=?"(L, R : Logic) -> Ordering is
+        {#false}
+    end op "=?"
 end class SailGate::Prelude::Logic
 
 class SailGate::Prelude::Vec_Index is
@@ -96,13 +92,9 @@ exports
         return L
     end op "xor"
 
-    op "=="(L, R : Vec) -> Boolean is
-        return #false
-    end op "=="
-
-    op "!="(L, R : Vec) -> Boolean is
-        return #false
-    end op "!="
+    op "=?"(L, R : Vec) -> Ordering is
+        {#false}
+    end op "=?"
 
     op "indexing"(M : Vec; Key : Vec_Index<S>) -> Logic<D> is
         return #false;
@@ -144,13 +136,9 @@ exports
         return L
     end op "xor"
 
-    op "=="(L, R : IVec) -> Boolean is
-        return #false
-    end op "=="
-
-    op "!="(L, R : IVec) -> Boolean is
-        return #false
-    end op "!="
+    op "=?"(L, R : IVec) -> Ordering is
+        {#false}
+    end op "=?"
 
     op ">>"(L, R : IVec) -> IVec is
         return L
@@ -224,13 +212,9 @@ exports
         return L
     end op "xor"
 
-    op "=="(L, R : UVec) -> Boolean is
-        return #false
-    end op "=="
-
-    op "!="(L, R : UVec) -> Boolean is
-        return #false
-    end op "!="
+    op "=?"(L, R : UVec) -> Ordering is
+        {#false}
+    end op "=?"
 
     op ">>"(L, R : UVec) -> UVec is
         return L

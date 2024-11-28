@@ -1,0 +1,7 @@
+/// Realized domain for tests that only involve testing types.
+/// This really shouldn't be done inside any actual SailGate
+/// application, it just allows us to write type tests without
+/// having to create entities for each test.
+interface SailGate::Prelude::Fake_Dom<>
+    extends SailGate::Prelude::Async<> is
+end interface SailGate::Prelude::Fake_Dom

@@ -1,8 +1,9 @@
-// RUN: %sailgate_check
+// RUN: %sailgate_typecheck
 
 import SailGate::Prelude::*;
+import *;
 
 func Test_Invalid_Const() is
     // CHECK: Error: Assertion failed:  {> Util::In_SBounds(Univ, S) <}
-    var Invalid : IVec<3, Async> := 5;
+    var Invalid : IVec<3, Fake_Dom> := 5;
 end func Test_Invalid_Const

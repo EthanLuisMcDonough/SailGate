@@ -1,12 +1,13 @@
-// RUN: %sailgate_check
+// RUN: %sailgate_typecheck
 
 import SailGate::Prelude::*;
+import *;
 
 func Test_Invalid_Const() is
     
     const Okay_Index := 2;
     const Bad_Index := 4;
-    var Invalid : IVec<3, Async> := 0;
+    var Invalid : IVec<3, Fake_Dom> := 0;
 
     Invalid[Okay_Index] := 1;
     Invalid[1] := 0;

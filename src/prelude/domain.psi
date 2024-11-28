@@ -1,4 +1,4 @@
-interface SailGate::Prelude::Async<> is
+abstract interface SailGate::Prelude::Async<> is
 end interface SailGate::Prelude::Async
 
 abstract interface SailGate::Prelude::Clock<>

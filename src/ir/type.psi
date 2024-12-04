@@ -1,0 +1,17 @@
+interface SailGate::IR::Vec_Type<> is
+    type Type_Kind is Enum<[#logic, #int, #uint]>;
+    const Kind : Type_Kind;
+    const Size : Univ_Integer;
+end interface SailGate::IR::Vec_Type
+
+interface SailGate::IR::Type<> is
+    type Type_Kind is Enum<[#scalar, #vec]>;
+    const Kind : Type_Kind;
+
+    func Create(S : Scalar_Type) -> Type;
+    func Create(K : Vec_Type::Type_Kind;
+        S : Univ_Integer {S > 0}) -> Type;
+
+    func Get_Scalar(T : Type {T.Kind == #scalar}) -> Scalar_Type;
+    func Get_Vec(T : Type {T.Kind == #vec}) -> Vec_Type;
+end interface SailGate::IR::Type

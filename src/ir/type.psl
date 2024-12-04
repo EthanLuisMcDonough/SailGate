@@ -1,0 +1,21 @@
+class SailGate::IR::Type is
+    const Scalar : optional Scalar_Type;
+    const Vec : optional Vec_Type;
+exports
+    func Create(S : Scalar_Type) -> Type is
+        return (Kind => #scalar, Scalar => S, Vec => null);
+    end func Create
+
+    func Create(K : Vec_Type::Type_Kind; S : Univ_Integer) -> Type is
+        return (Kind => #vec, Scalar => null,
+            Vec => (Kind => K, Size => S));
+    end func Create
+
+    func Get_Scalar(T : Type) -> Scalar_Type is
+        return T.Scalar;
+    end func Get_Scalar
+
+    func Get_Vec(T : Type) -> Vec_Type is
+        return T.Vec;
+    end func Get_Vec
+end class SailGate::IR::Type

@@ -1,5 +1,6 @@
 sailgate.psi
 util.psi
 prelude
+ir
 sema
 driver.psi

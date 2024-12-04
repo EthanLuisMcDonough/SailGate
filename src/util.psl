@@ -1,0 +1,8 @@
+class SailGate::Util is
+exports
+    func Starts_With(Str : Univ_String; Prefix : Univ_String) -> Boolean is
+        const Prefix_Size := |Prefix|;
+        return Length(Str) >= Prefix_Size and then
+            Str[1..Prefix_Size] == Prefix;
+    end func Starts_With
+end class SailGate::Util

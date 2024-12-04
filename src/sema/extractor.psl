@@ -1,19 +1,19 @@
 import PSC::Reflection::*;
 import SailGate::Sema::*;
+import SailGate::Util::*;
 
 class SailGate::Sema::Extractor is
+    const Entity_Prefix := "SailGate::Prelude::Entity<";
     var Pending : Map<Univ_String, Decl>;
 
     func Type_Is_Entity(Type : Type_Descriptor) -> Boolean is
         if Type is null then
             return #false;
         end if
-        const Entity_Prefix := "SailGate::Prelude::Entity<";
-        const Prefix_Size := Length(Entity_Prefix);
         const Base := Util::Base_Type(Type);
         const Base_Name := Name(Base);
-        return not Is_Abstract(Type) and then Length(Base_Name) > Prefix_Size
-            and then Base_Name[1..Prefix_Size] == Entity_Prefix;
+        return not Is_Abstract(Type) and then
+            Starts_With(Base_Name, Entity_Prefix);
     end func Type_Is_Entity
 
     func Decl_Is_Entity(D : Decl) -> Boolean is
@@ -65,7 +65,6 @@ exports
                 Visit_Entity(Ex, Item);
             end if
         end loop
-        {> |Ex.Pending| == 0 <}
         return |Ex.Entities|;
     end func Load
 end class SailGate::Sema::Extractor

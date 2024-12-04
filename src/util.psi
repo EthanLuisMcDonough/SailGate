@@ -1,0 +1,3 @@
+interface SailGate::Util<> is
+    func Starts_With(Str : Univ_String; Prefix : Univ_String) -> Boolean;
+end interface SailGate::Util

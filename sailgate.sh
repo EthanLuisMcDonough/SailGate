@@ -3,21 +3,9 @@
 # Minimal SailGate driver script
 # assumes interp.csh is in path
 
-ROOT=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd );
-HEADER_FILES=();
-SOURCE_FILES=();
+ROOT=$(cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd);
+GATHERER="$ROOT/scripts/psc_list_gather.sh"
 
-read_dir() {
-    if [[ $1 == *.psi ]]; then
-        HEADER_FILES+=("$1");
-    else
-        for item in $(cat "$1/psc_list.txt"); do
-            read_dir "$1/$item";
-        done
-        SOURCE_FILES+=("$1/*.psl");
-    fi
-} 
+SOURCE_FILES=( $(sh "$GATHERER" "$ROOT/src") )
 
-read_dir "$ROOT/src"
-
-interp.csh "${HEADER_FILES[@]}" "${SOURCE_FILES[@]}" "$@" -command Main
+interp.csh "${SOURCE_FILES[@]}" "$@" -command Main

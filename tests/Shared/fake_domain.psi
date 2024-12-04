@@ -5,3 +5,7 @@
 interface SailGate::Prelude::Fake_Dom<>
     extends SailGate::Prelude::Async<> is
 end interface SailGate::Prelude::Fake_Dom
+
+interface SailGate::Prelude::Fake_Dom_2<>
+    extends SailGate::Prelude::Async<> is
+end interface SailGate::Prelude::Fake_Dom_2

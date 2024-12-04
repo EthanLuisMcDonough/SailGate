@@ -1,10 +1,10 @@
 // RUN: %sailgate_typecheck
+// RUN: %sailgate_check
 
 import SailGate::Prelude::*;
 import *;
 
-func Test_Invalid_Const() is
-    
+func Test_Invalid_Bounds() is
     const Okay_Index := 2;
     const Bad_Index := 4;
     var Invalid : IVec<3, Fake_Dom> := 0;
@@ -14,4 +14,4 @@ func Test_Invalid_Const() is
 
     // CHECK: Error: Assertion failed:  {> U < S <}
     Invalid[Bad_Index] := 0;
-end func Test_Invalid_Const
+end func Test_Invalid_Bounds

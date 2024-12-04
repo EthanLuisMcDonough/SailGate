@@ -1,4 +1,5 @@
 // RUN: %sailgate_typecheck
+// RUN: %sailgate_check
 
 import SailGate::Prelude::*;
 import *;

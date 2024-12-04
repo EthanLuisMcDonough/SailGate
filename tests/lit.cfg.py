@@ -21,15 +21,18 @@ config.test_source_root = test_dir
 config.test_format = lit.formats.ShTest()
 
 dbg_console_prefix = "yes exit | "
-filecheck_suffix = " %s 2>&1 | FileCheck %s"
+suffix = " %s > %t 2>&1"
 fake_dom = os.path.join(shared_dir, "fake_domain.psi")
 
 # %sailgate_typecheck: Runs check for simple type-based tests.
 #                      These tests exist to check how RTL types
 #                      can be used
 config.substitutions.append(("%sailgate_typecheck", type_script +
-                             " " + fake_dom + filecheck_suffix))
+                             " " + fake_dom + suffix))
 
-# %sailgate_check: Runs driver with test file and checks output
-config.substitutions.append(("%sailgate_check", dbg_console_prefix +
-                             driver_script + filecheck_suffix))
+# %sailgate_check: Runs FileCheck on generated temp file
+config.substitutions.append(("%sailgate_check", "FileCheck %s --input-file %t"))
+
+# %sailgate: Runs driver with test file and checks output
+config.substitutions.append(("%sailgate", dbg_console_prefix +
+                             driver_script + suffix))

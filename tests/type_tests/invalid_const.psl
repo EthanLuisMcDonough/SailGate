@@ -1,6 +1,8 @@
 // RUN: %sailgate_typecheck
 // RUN: %sailgate_check
 
+// TEST ID: ti-invalid-num
+
 import SailGate::Prelude::*;
 import *;
 

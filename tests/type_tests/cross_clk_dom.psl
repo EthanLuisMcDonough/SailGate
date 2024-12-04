@@ -1,6 +1,8 @@
 // RUN: not %sailgate_typecheck
 // RUN: %sailgate_check
 
+// TEST ID: ti-diff-clock-doms
+
 import SailGate::Prelude::*;
 
 func Test_Cross_Clk_Dom() is

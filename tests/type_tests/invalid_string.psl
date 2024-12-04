@@ -1,0 +1,11 @@
+// RUN: %sailgate_typecheck
+// RUN: %sailgate_check
+
+// TYPE ID: ti-invalid-string
+
+import SailGate::Prelude::*;
+
+func Test_Invalid_String() is
+    // CHECK: Error: Assertion failed: {> Util::Is_Vec_Str(U, S) <}
+    var Invalid : IVec<3, Fake_Dom> := "0101";
+end func Test_Invalid_String

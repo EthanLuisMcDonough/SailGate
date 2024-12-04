@@ -4,7 +4,6 @@
 // TEST ID: ti-invalid-num
 
 import SailGate::Prelude::*;
-import *;
 
 func Test_Invalid_Const() is
     // CHECK: Error: Assertion failed:  {> Util::In_SBounds(Univ, S) <}

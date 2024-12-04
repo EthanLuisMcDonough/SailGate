@@ -31,7 +31,8 @@ config.substitutions.append(("%sailgate_typecheck", type_script +
                              " " + fake_dom + suffix))
 
 # %sailgate_check: Runs FileCheck on generated temp file
-config.substitutions.append(("%sailgate_check", "FileCheck %s --input-file %t"))
+config.substitutions.append(("%sailgate_check", "FileCheck %s " +
+                             "--input-file %t"))
 
 # %sailgate: Runs driver with test file and checks output
 config.substitutions.append(("%sailgate", dbg_console_prefix +

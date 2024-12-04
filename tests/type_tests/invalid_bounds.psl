@@ -4,7 +4,6 @@
 // TEST ID: ti-invalid-index
 
 import SailGate::Prelude::*;
-import *;
 
 func Test_Invalid_Bounds() is
     const Okay_Index := 2;

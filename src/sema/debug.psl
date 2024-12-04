@@ -1,0 +1,56 @@
+import PSC::Reflection::*;
+import SailGate::Sema::*;
+
+class SailGate::Sema::Debug is
+    func Dump_Decl_Region(D : Decl; R : Region; Label : Univ_String) is
+        if R is null then
+            Println("  - " | Label | " region is null");
+            return;
+        end if
+        Println("  - " | Label | " region " | Index(R) |
+                " (" | Kind(R) | ")");
+        for I in 1..Num_Items(R) forward loop
+            const Next_Item := R.Nth_Item(I);
+            const Next_Name := Util::Get_Decl_Name(Next_Item);
+            Println("   - " | Next_Name | " (" | To_String(Kind(Next_Item)) | ")");
+        end loop
+    end func Dump_Decl_Region
+exports
+    func Dump(D : Decl) is
+        const Name := Util::Get_Decl_Name(D);
+        const This_Mod := Module_Name(D);
+        Println("=== DECL " | Name | " (" | To_String(Kind(D)) | ") ===");
+        Dump_Decl_Region(D, Decl_Region(D), "Decl");
+    end func Dump
+
+    func Dump(T : Type_Descriptor) is
+        Println("=== TYPE " | Name(T) | " ===");
+        const Params := Parameters(T);
+        Println(" - PARAMS:");
+        for I in 1..|Params| forward loop
+            const Info := Params[I];
+            Println("   - " | To_String(Info.Kind));
+        end loop
+
+        const Actuals := Actuals_Of_Formals(T);
+        Println(" - ACTUALS:");
+        for I in 1..|Actuals| forward loop
+            const Info := Actuals[I];
+            Println("   - " | To_String(Info.Kind));
+        end loop
+
+        const Comps := Components(T);
+        Println(" - COMPONENTS:");
+        for I in 1..|Comps| forward loop
+            const Comp := Comps[I];
+            Println("   - " | Name(Comp.Type_Desc));
+        end loop
+
+        const Objs := Nested_Objs(T);
+        Println(" - NESTED OBJS:");
+        for I in 1..|Objs| forward loop
+            const Info := Objs[I];
+            Println("   - " | Info.Name);
+        end loop
+    end func Dump
+end class SailGate::Sema::Debug

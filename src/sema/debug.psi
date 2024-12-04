@@ -1,0 +1,11 @@
+import PSC::Reflection::*;
+
+/// Utility functions for dumping Reflection objects.
+/// Used for debugging.
+interface SailGate::Sema::Debug<> is
+    /// Dumps Decl
+    func Dump(D : Decl);
+
+    /// Dumps type descriptor
+    func Dump(T : Type_Descriptor);
+end interface SailGate::Sema::Debug

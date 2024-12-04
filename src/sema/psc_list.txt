@@ -1,3 +1,4 @@
 sema.psi
 util.psi
+debug.psi
 extractor.psi

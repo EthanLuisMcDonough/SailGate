@@ -8,4 +8,4 @@ GATHERER="$ROOT/scripts/psc_list_gather.sh"
 
 SOURCE_FILES=( $(sh "$GATHERER" "$ROOT/src") )
 
-interp.csh "${SOURCE_FILES[@]}" "$@" -command Main
+yes exit | interp.csh "${SOURCE_FILES[@]}" "$@" -command Main

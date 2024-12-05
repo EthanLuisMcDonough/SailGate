@@ -1,4 +1,5 @@
 import SailGate::Sema::Util::*;
+import SailGate::Util::*;
 import PSC::Reflection::*;
 
 class SailGate::Sema::Util is
@@ -17,4 +18,25 @@ exports
         end if
         return Module_Name(D) | "::" | Id(D);
     end func Get_Decl_Name
+
+    func First_In_Region(R : Region; Kind : Decl::Decl_Kind) -> optional Decl is
+        if R is null then
+            return null;
+        end if
+        for I in 1..Num_Items(R) forward loop
+            const Next_Item := R.Nth_Item(I);
+            if Kind(Next_Item) == Kind then
+                return Next_Item;
+            end if
+        end loop
+    end func First_In_Region
+
+    func Base_Name(Name : Univ_String) -> Univ_String is
+        const I := Index_Of(Name, '<');
+        if I is null then
+            return Name;
+        else
+            return Name[1..(I - 1)];
+        end if
+    end func Base_Name
 end class SailGate::Sema::Util

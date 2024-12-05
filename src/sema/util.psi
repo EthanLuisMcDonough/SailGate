@@ -8,4 +8,11 @@ interface SailGate::Sema::Util<> is
 
     /// Gets full name for decl
     func Get_Decl_Name(D : Decl) -> Univ_String;
+
+    /// Extracts base type name from type with parameters
+    /// E.g. A<B> -> A
+    func Base_Name(Name : Univ_String) -> Univ_String;
+
+    /// Gets first decl of kind in region
+    func First_In_Region(R : Region; Kind : Decl::Decl_Kind) -> optional Decl;
 end interface SailGate::Sema::Util

@@ -1,0 +1,169 @@
+import PSC::Reflection;
+import SailGate::*;
+import SailGate::Util::*;
+
+class SailGate::Sema::Sema_Error is
+exports
+    func Dump(E : Sema_Error) is
+        if E.Source not null then
+            Println("SailGate semantic error at " | E.Source | ": ");
+        else
+            Println("SailGate semantic error: ");
+        end if
+        case E.Kind of
+            [#no_entity] => Println("No entities found");
+            [#invalid_field_type] => Println("Invalid field type. Field must be a realized RTL type");
+            [#mutable_field] => Println("Invalid field mutability. Field must be constant");
+            [#no_behavior] => Println("No \"Run\" method found");
+            [#invalid_inst] => Println("Invalid instruction");
+        end case
+    end func Dump
+end class SailGate::Sema::Sema_Error
+
+class SailGate::Sema::Validator is
+    interface Type_Name<> is
+        const Logic := Prelude_Prefix | "Logic<";
+        const LVec := Prelude_Prefix | "Vec<";
+        const SVec := Prelude_Prefix | "IVec<";
+        const UVec := Prelude_Prefix | "UVec<";
+        const Async := Prelude_Prefix | "Async";
+        const Clock := Prelude_Prefix | "Clock";
+        const Clock_Reset := Prelude_Prefix | "Clock_Reset";
+        const Clock_Reset_En := Prelude_Prefix | "Clock_Reset_En";
+    end interface Type_Name
+
+    /// Creates IR type from RTL type descriptor. Returns null for
+    /// incorrect types
+    func Type_To_Rtl(Type : Reflection::Type_Descriptor) -> optional IR::Type is
+        const TN := Name(Type);
+        if Starts_With(TN, Type_Name::Logic) then
+            return Create(#logic);
+        end if
+
+        var Vec_Type : IR::Vec_Type::Type_Kind := #logic;
+        var Vec_Type_Name := Type_Name::LVec;
+        if Starts_With(TN, Type_Name::SVec) then
+            Vec_Type := #int;
+            Vec_Type_Name := Type_Name::SVec;
+        elsif Starts_With(TN, Type_Name::UVec) then
+            Vec_Type := #uint;
+            Vec_Type_Name := Type_Name::UVec;
+        elsif not Starts_With(TN, Type_Name::LVec) then
+            return null; 
+        end if
+
+        // Type params can't be accessed unless they're "finished"
+        // This is dusty as hell, but it will do for now
+        var Vec_Size := 0;
+        for I in (|Vec_Type_Name| + 1)..|TN| forward loop
+            case TN[I] of
+                ['0'..'9'] => Vec_Size := Vec_Size * 10 + (TN[I] - '0');
+                [..] => exit loop;
+            end case
+        end loop
+
+        return Create(Vec_Type, Vec_Size);
+    end func Type_To_Rtl
+
+    func Check(ref var Ports : IR::Entity::Port_Def;
+            Comp : Reflection::Component_Info) -> optional Sema_Error is
+        const Comp_Decl := Comp.Component_Decl;
+        const Comp_Source := Decl_Source_Pos(Comp_Decl);
+
+        if Comp.Is_Var then
+            return (Kind => #mutable_field,
+                Source => Comp_Source);
+        end if
+
+        const Rtl_Type := Type_To_Rtl(Comp.Type_Desc);
+        if Rtl_Type is null then
+            return (Kind => #invalid_field_type,
+                Source => Comp_Source);
+        end if
+
+        Ports |= (Key => Id(Comp_Decl), Value => Rtl_Type);
+    end func Check
+
+    /// Ensures that all fields inside a type are constant RTL types.
+    /// Populates port map with field names and types
+    func Check(ref var Ports : IR::Entity::Port_Def;
+            T : Reflection::Type_Descriptor) -> optional Sema_Error is
+        const Comps := Components(T);
+        for I in 1..|Comps| forward loop
+            const Comp := Comps[I];
+            const Err := Check(Ports, Comp);
+            if Err not null then
+                return Err;
+            end if
+        end loop
+    end func Check
+
+    func Routine_Is_Run(R : Reflection::Routine) -> Boolean is
+        return R not null and then Name(R) == "Run" and then |Parameters(R)| == 2;
+    end func Routine_Is_Run
+
+    /// Traverses Decl AST and inserts valid entity rep into the entity map
+    func Check(var V : Validator; D : Reflection::Decl; Ex : Extractor) -> optional Sema_Error is
+        var Type_Params : Vector<Reflection::Decl>;
+        var Fields : Vector<Reflection::Decl>;
+
+        const DR := Decl_Region(D);
+        {> DR not null <}
+
+        // Get Entity type
+        const Entity_Type_Decl := DR.Nth_Item(1);
+        {> Kind(Entity_Type_Decl) == #type <}
+        const Entity_Type := Descriptor_For_Type(Entity_Type_Decl);
+
+        // Check field types types
+        var Inputs : IR::Entity::Port_Def := [];
+        const Input_Err := Check(Inputs, Entity_Type);
+        if Input_Err not null then
+            return Input_Err;
+        end if
+
+        // Find "Run" implementation
+        var Behavior : Reflection::Routine := null;
+        for I in 2..Num_Items(DR) forward loop
+            const Next_Item := DR.Nth_Item(I);
+            if Kind(Next_Item) == #operation then
+                const R := Routine_For_Operation(Next_Item);
+                if not Routine_Is_Run(R) then
+                    continue loop;
+                end if
+                Behavior := R;
+            end if
+        end loop
+
+        if Behavior is null then
+            return (Kind => #no_behavior, Source => Decl_Source_Pos(D));
+        end if
+
+        const Run_Params := Parameters(Behavior);
+        for I in 1..|Run_Params| forward loop
+            if Run_Params[I].Is_Operation_Output then
+                const Base_Name := Util::Base_Name(Run_Params[I].Type_Name);
+                
+                //Println(Util::Base_Name(Run_Params[I].Type_Name));
+                //Run_Params[I].Type_Info
+                Sema::Debug::Dump(Ex.Potential_Outputs[Base_Name]);
+            end if
+        end loop
+    end func Check
+exports
+    func Create() -> Validator is
+        return (Entities => []);
+    end func Create
+
+    func Check(var V : Validator; Ex : Extractor) -> optional Sema_Error is
+        if |Ex.Entities| == 0 then
+            return (Kind => #no_entity, Source => null);
+        end if
+        for I in 1..|Ex.Entities| forward loop
+            const Res := Check(V, Ex.Entities[I].Spec, Ex);
+            if Res not null then
+                return Res;
+            end if
+        end loop
+    end func Check
+end class SailGate::Sema::Validator

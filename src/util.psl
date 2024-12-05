@@ -5,4 +5,12 @@ exports
         return Length(Str) >= Prefix_Size and then
             Str[1..Prefix_Size] == Prefix;
     end func Starts_With
+
+    func Index_Of(Str : Univ_String; C : Univ_Character; Start : Univ_Integer) -> optional Univ_Integer is
+        for I in Start..|Str| forward loop
+            if Str[I] == C then
+                return I;
+            end if
+        end loop
+    end func Index_Of
 end class SailGate::Util

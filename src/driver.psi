@@ -1,3 +1,12 @@
 func Main(Args : Basic_Array<Univ_String>) is
     Println("DRIVER FUNCTION");
+    var E := SailGate::Sema::Extractor::Create();
+    var Env := PSC::Reflection::Environment::Get_Current_Env();
+    Load(E, Env);
+    var Validator := SailGate::Sema::Validator::Create();
+    const Err := Check(Validator, E);
+    if Err not null then
+        Dump(Err);
+        return;
+    end if
 end func Main

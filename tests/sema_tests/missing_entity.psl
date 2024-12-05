@@ -1,0 +1,9 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: si-missing-entity
+
+func Nothing() is
+    // CHECK: No entities found
+    Println("burger");
+end func Nothing

@@ -20,7 +20,6 @@ config.excludes = ["Shared"]
 config.test_source_root = test_dir
 config.test_format = lit.formats.ShTest()
 
-dbg_console_prefix = "yes exit | "
 suffix = " %s > %t 2>&1"
 fake_dom = os.path.join(shared_dir, "fake_domain.psi")
 
@@ -35,5 +34,4 @@ config.substitutions.append(("%sailgate_check", "FileCheck %s " +
                              "--input-file %t"))
 
 # %sailgate: Runs driver with test file and checks output
-config.substitutions.append(("%sailgate", dbg_console_prefix +
-                             driver_script + suffix))
+config.substitutions.append(("%sailgate", driver_script + suffix))

@@ -3,8 +3,19 @@ import SailGate::Sema::*;
 import SailGate::Util::*;
 
 class SailGate::Sema::Extractor is
-    const Entity_Prefix := "SailGate::Prelude::Entity<";
+    const Entity_Prefix := Prelude_Prefix | "Entity<";
     var Pending : Map<Univ_String, Decl>;
+
+    func Decl_Is_Output(D : Decl) -> Boolean is
+        const Mod := Module_Name(D);
+        if Mod is null then
+            return #true;
+        end if
+        if Starts_With(Mod, "SailGate::") or Starts_With(Mod, "PSC::") then
+            return #false;
+        end if
+        return #true;
+    end func Decl_Is_Output
 
     func Type_Is_Entity(Type : Type_Descriptor) -> Boolean is
         if Type is null then
@@ -20,16 +31,9 @@ class SailGate::Sema::Extractor is
         if Kind(D) != #module then
             return #false
         end if
-        const DR := Decl_Region(D);
-        if DR not null then
-            for I in 1 .. Num_Items(DR) forward loop
-                const Next_Item := DR.Nth_Item(I);
-                if Kind(Next_Item) == #type then
-                    return Type_Is_Entity(Descriptor_For_Type(Next_Item));
-                end if
-            end loop
-        end if
-        return #false;
+        const Type_Decl := Util::First_In_Region(Decl_Region(D), #type);
+        const Desc := Descriptor_For_Type(Type_Decl);
+        return Type_Is_Entity(Desc);
     end func Decl_Is_Entity
 
     func Visit_Entity(var E : Extractor; D : Decl) is
@@ -55,16 +59,19 @@ class SailGate::Sema::Extractor is
     end func Visit_Impl
 exports
     func Create() -> Extractor is
-        return with (Entities => [], Pending => []);
+        return (Entities => [], Pending => [],
+            Potential_Outputs => []);
     end func Create
 
-    func Load(var Ex : Extractor; var Env : Environment) -> Univ_Integer is
-        for I in 1 .. Env.Num_Library_Items() forward loop
+    func Load(var Ex : Extractor; var Env : Environment) is
+        for I in 1..Env.Num_Library_Items() forward loop
             const Item := Env.Nth_Library_Item(I);
+            const Name := Util::Get_Decl_Name(Item);
             if Decl_Is_Entity(Item) then
                 Visit_Entity(Ex, Item);
+            elsif Decl_Is_Output(Item) then
+                Ex.Potential_Outputs |= (Key => Name, Value => Item);
             end if
         end loop
-        return |Ex.Entities|;
     end func Load
 end class SailGate::Sema::Extractor

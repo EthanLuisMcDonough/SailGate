@@ -12,6 +12,9 @@ interface SailGate::Sema::Extractor<> is
 
     var Entities : Vector<Raw_Entity_Data>;
 
+    /// I'm sorry; the library made me do it
+    var Potential_Outputs : Map<Univ_String, Decl>;
+
     /// Creates extractor with given reflection environment
     func Create() -> Extractor;
 
@@ -19,6 +22,6 @@ interface SailGate::Sema::Extractor<> is
     /// found in reflection environment. Returns number of entities
     /// found.
     func Load(var Ex : Extractor {Length(Ex.Entities) == 0};
-        var Env : Environment) -> Univ_Integer;
+        var Env : Environment);
 end interface SailGate::Sema::Extractor
 

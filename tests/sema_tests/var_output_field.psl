@@ -1,21 +1,21 @@
 // RUN: %sailgate
 // RUN: %sailgate_check
 
-// TEST ID: si-var-input
+// TEST ID: si-var-output
 
 import SailGate::Prelude::*;
 import *;
 
 interface Out<D is Async<>> extends Output is
-    const C : Logic<D>;
+    // CHECK: 12:9
+    // CHECK: Invalid field mutability. Field must be constant
+    var C : Logic<D>;
     func Register(O : Out);
 end interface Out
 
 interface Test<D is Async<>> extends Entity<Out<D>> is
     const A : Logic<D>;
-    // CHECK: 18:9
-    // CHECK: Invalid field mutability. Field must be constant
-    var B : Logic<D>;
+    const B : Logic<D>;
     func Run(T : Test) -> Out<D>;
 end interface Test
 

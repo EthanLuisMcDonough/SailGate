@@ -11,9 +11,7 @@ interface SailGate::Sema::Extractor<> is
     end interface Raw_Entity_Data
 
     var Entities : Vector<Raw_Entity_Data>;
-
-    /// I'm sorry; the library made me do it
-    var Potential_Outputs : Map<Univ_String, Decl>;
+    var Outputs : Map<Univ_String, Decl>;
 
     /// Creates extractor with given reflection environment
     func Create() -> Extractor;

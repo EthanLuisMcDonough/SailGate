@@ -6,3 +6,10 @@ exports
         return with (Value => Logic_Vec(Counter));
     end func Run
 end class Counter_2Bit::In
+
+class Counter_2Bit::Out is
+exports
+    func Register(O : Out) is
+        {#false}
+    end func Register
+end class Counter_2Bit::Out

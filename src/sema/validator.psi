@@ -16,4 +16,5 @@ interface SailGate::Sema::Validator<> is
 
     func Create() -> Validator;
     func Check(var V : Validator; Ex : Extractor) -> optional Sema_Error;
+    func Dump(V : Validator);
 end interface SailGate::Sema::Validator

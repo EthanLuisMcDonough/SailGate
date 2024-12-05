@@ -6,13 +6,14 @@
 import SailGate::Prelude::*;
 import *;
 
-interface Out<D is Async<>> is
+interface Out<D is Async<>> extends Output is
     const C : Logic<D>;
+    func Register(O : Out);
 end interface Out
 
 interface Test<D is Async<>> extends Entity<Out<D>> is
     const A : Logic<D>;
-    // CHECK: 17:11
+    // CHECK: 18:11
     // CHECK: Invalid field type. Field must be a realized RTL type
     const B : Univ_Integer;
     func Run(T : Test) -> Out<D>;
@@ -24,3 +25,10 @@ exports
         return (C => T.A and T.B);
     end func Run
 end class Test
+
+class Out is
+exports
+    func Register(O : Out) is
+        {#false}
+    end func Register
+end class Out

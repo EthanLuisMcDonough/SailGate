@@ -1,28 +1,28 @@
 // RUN: %sailgate
 // RUN: %sailgate_check
 
-// TEST ID: si-var-input
+// TEST ID: si-bad-output-type
 
 import SailGate::Prelude::*;
 import *;
 
 interface Out<D is Async<>> extends Output is
-    const C : Logic<D>;
+    // CHECK: 12:11
+    // CHECK: Invalid field type. Field must be a realized RTL type
+    const C : Univ_Integer;
     func Register(O : Out);
 end interface Out
 
 interface Test<D is Async<>> extends Entity<Out<D>> is
     const A : Logic<D>;
-    // CHECK: 18:9
-    // CHECK: Invalid field mutability. Field must be constant
-    var B : Logic<D>;
+    const B : Logic<D>;
     func Run(T : Test) -> Out<D>;
 end interface Test
 
 class Test is
 exports
     func Run(T : Test) -> Out<D> is
-        return (C => T.A and T.B);
+        return (C => 3);
     end func Run
 end class Test
 

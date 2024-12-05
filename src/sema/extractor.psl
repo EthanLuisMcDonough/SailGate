@@ -4,18 +4,18 @@ import SailGate::Util::*;
 
 class SailGate::Sema::Extractor is
     const Entity_Prefix := Prelude_Prefix | "Entity<";
+    const Output_Name := Prelude_Prefix | "Output";
     var Pending : Map<Univ_String, Decl>;
 
-    func Decl_Is_Output(D : Decl) -> Boolean is
-        const Mod := Module_Name(D);
-        if Mod is null then
-            return #true;
-        end if
-        if Starts_With(Mod, "SailGate::") or Starts_With(Mod, "PSC::") then
+    func Type_Is_Output(Type : Type_Descriptor) -> Boolean is
+        if Type is null then
             return #false;
         end if
-        return #true;
-    end func Decl_Is_Output
+        const Base := Util::Base_Type(Type);
+        const Base_Name := Name(Base);
+        return not Is_Abstract(Type) and then
+            Base_Name == Output_Name;
+    end func Type_Is_Output
 
     func Type_Is_Entity(Type : Type_Descriptor) -> Boolean is
         if Type is null then
@@ -35,6 +35,15 @@ class SailGate::Sema::Extractor is
         const Desc := Descriptor_For_Type(Type_Decl);
         return Type_Is_Entity(Desc);
     end func Decl_Is_Entity
+
+    func Decl_Is_Output(D : Decl) -> Boolean is
+        if Kind(D) != #module then
+            return #false
+        end if
+        const Type_Decl := Util::First_In_Region(Decl_Region(D), #type);
+        const Desc := Descriptor_For_Type(Type_Decl);
+        return Type_Is_Output(Desc);
+    end func Decl_Is_Output
 
     func Visit_Entity(var E : Extractor; D : Decl) is
         if Is_Spec(D) then
@@ -60,7 +69,7 @@ class SailGate::Sema::Extractor is
 exports
     func Create() -> Extractor is
         return (Entities => [], Pending => [],
-            Potential_Outputs => []);
+            Outputs => []);
     end func Create
 
     func Load(var Ex : Extractor; var Env : Environment) is
@@ -70,7 +79,7 @@ exports
             if Decl_Is_Entity(Item) then
                 Visit_Entity(Ex, Item);
             elsif Decl_Is_Output(Item) then
-                Ex.Potential_Outputs |= (Key => Name, Value => Item);
+                Ex.Outputs |= (Key => Name, Value => Item);
             end if
         end loop
     end func Load

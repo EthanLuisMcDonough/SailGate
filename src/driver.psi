@@ -1,5 +1,4 @@
 func Main(Args : Basic_Array<Univ_String>) is
-    Println("DRIVER FUNCTION");
     var E := SailGate::Sema::Extractor::Create();
     var Env := PSC::Reflection::Environment::Get_Current_Env();
     Load(E, Env);
@@ -9,4 +8,5 @@ func Main(Args : Basic_Array<Univ_String>) is
         Dump(Err);
         return;
     end if
+    Dump(Validator);
 end func Main

@@ -140,15 +140,28 @@ class SailGate::Sema::Validator is
         end if
 
         const Run_Params := Parameters(Behavior);
+        var Output_Type : Reflection::Type_Descriptor := null;
         for I in 1..|Run_Params| forward loop
             if Run_Params[I].Is_Operation_Output then
                 const Base_Name := Util::Base_Name(Run_Params[I].Type_Name);
-                
-                //Println(Util::Base_Name(Run_Params[I].Type_Name));
-                //Run_Params[I].Type_Info
-                Sema::Debug::Dump(Ex.Potential_Outputs[Base_Name]);
+                const Base_Decl := Ex.Outputs[Base_Name];
+                const Type_Decl := Util::First_In_Region(Decl_Region(Base_Decl), #type);
+                Output_Type := Descriptor_For_Type(Type_Decl);
             end if
         end loop
+
+        {>*"No output found"* Output_Type not null<}
+        // Check output
+        var Outputs : IR::Entity::Port_Def := [];
+        const Output_Err := Check(Outputs, Output_Type);
+        if Output_Err not null then
+            return Output_Err;
+        end if
+
+        const Entity : IR::Entity := (
+            Inputs => Inputs, Outputs => Outputs,
+            Domains => [], Behavior => Behavior);
+        V.Entities |= (Key => Name(Entity_Type), Value => Entity);
     end func Check
 exports
     func Create() -> Validator is
@@ -166,4 +179,18 @@ exports
             end if
         end loop
     end func Check
+
+    func Dump(V : Validator) is
+        for each [Name => Rep] of V.Entities loop
+            Println("=== ENTITY " | Name | " ===");
+            Println("Inputs: ");
+            for each [Input_Name => Input_Type] of Rep.Inputs loop
+                Println(" - " | Input_Name | " " | To_String(Input_Type));
+            end loop
+            Println("Outputs: ");
+            for each [Input_Name => Input_Type] of Rep.Outputs loop
+                Println(" - " | Input_Name | " " | To_String(Input_Type));
+            end loop
+        end loop
+    end func Dump
 end class SailGate::Sema::Validator

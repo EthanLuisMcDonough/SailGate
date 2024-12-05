@@ -18,4 +18,13 @@ exports
     func Get_Vec(T : Type) -> Vec_Type is
         return T.Vec;
     end func Get_Vec
+
+    func To_String(T : Type) -> Univ_String is
+        case T.Kind of
+            [#scalar] => return To_String(Get_Scalar(T));
+            [#vec] => 
+                const V := Get_Vec(T);
+                return To_String(V.Kind) | "(" | V.Size | ")";
+        end case
+    end func To_String
 end class SailGate::IR::Type

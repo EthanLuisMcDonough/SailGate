@@ -1,12 +1,3 @@
 func Main(Args : Basic_Array<Univ_String>) is
-    var E := SailGate::Sema::Extractor::Create();
-    var Env := PSC::Reflection::Environment::Get_Current_Env();
-    Load(E, Env);
-    var Validator := SailGate::Sema::Validator::Create();
-    const Err := Check(Validator, E);
-    if Err not null then
-        Dump(Err);
-        return;
-    end if
-    Dump(Validator);
+    SailGate::Builder::Test();
 end func Main

@@ -1,0 +1,520 @@
+
+class SailGate::Builder is
+    const Space : Univ_String := " ";
+
+    // Helper function for wrapping a string in parenthesis
+    func Paren(U : Univ_String) -> Univ_String is
+        return "(" | U | ")";
+    end func Paren
+
+    /// Check if a unary operator is a logical operator (=, /=, >=, etc.)
+    func Returns_Bool(U : Unary_Op) -> Boolean is
+        return U == #logic_not;
+    end func Returns_Bool
+
+    /// Same as above, but for binary operators
+    func Returns_Bool(B : Binary_Op) -> Boolean is
+        return (case B of
+            [#eq | #neq | #lt | #gt | #lte | #gte] => #true;
+            [..] => #false);
+    end func Returns_Bool
+
+    /// Ranges for identifier checks
+    /// '.' is considered a word char in this context for property access
+    const Alphabetic_Range := 'A'..'Z' | 'a'..'z';
+    const Word_Range := Alphabetic_Range | '0'..'9' | '_' | '.';
+
+    func Get_Lower(C : Univ_Character) -> Univ_Character is
+        return (if C in 'A'..'Z' then (C - 'A') + 'a' else C);
+    end func Get_Lower
+
+    func Get_Upper(C : Univ_Character) -> Univ_Character is
+        return (if C in 'a'..'z' then (C - 'a') + 'A' else C);
+    end func Get_Upper
+
+    /// Normalizes identifier to Snake_Pascal_Case
+    /// VHDL is case insensitive
+    func Normalize_Case(S : Univ_String) -> Univ_String is
+        var Built_String : Univ_String := "";
+        var First_Letter : Boolean := #true;
+        for I in 1..|S| forward loop
+            var C := S[I];
+            if C == '_' then
+                First_Letter := #true;
+            else
+                C := (if First_Letter then Get_Upper(C) else Get_Lower(C));
+                First_Letter := #false;
+            end if
+            Built_String := Built_String | C;
+        end loop
+        return Built_String;
+    end func Normalize_Case
+exports
+    func Is_Valid_Ident(S : Univ_String) -> Boolean is
+        return |S| > 0 and then S[1] in Alphabetic_Range
+            and then (for all I in 2..|S| => S[I] in Word_Range);
+    end func Is_Valid_Ident
+
+    func Is_Valid_Bitstring(S : Univ_String) -> Boolean is
+        return |S| > 0 and then (for all I in 1..|S| => S[I] in '0'..'1');
+    end func Is_Valid_Bitstring
+
+    class Identifier is
+        const Value : Univ_String;
+    exports
+        op "from_univ"(S : Univ_String) -> Identifier is
+            return (Value => Normalize_Case(S));
+        end op "from_univ"
+
+        op "to_univ"(I : Identifier) -> Univ_String is
+            return I.Value;
+        end op "to_univ"
+    end class Identifier
+
+    class Scalar_Type is
+        const Kind : Scalar_Type_Kind;
+    exports
+        func Create(S : Scalar_Type_Kind) -> Scalar_Type is
+            return (Kind => S);
+        end func Create
+
+        op "=?"(L : Scalar_Type; R : Scalar_Type) -> Ordering is
+            return L.Kind =? R.Kind;
+        end op "=?"
+
+        func Generate(ref S : Scalar_Type) -> Univ_String is
+            return (case S.Kind of
+                [#logic] => "STD_LOGIC";
+                [#boolean] => "BOOLEAN");
+        end func Generate
+
+        // All bit and comparison operators are supported
+        func Supports(T : Scalar_Type; B : Binary_Op) -> Boolean is
+            Println(Generate(T) | " : " | To_String(B));
+            return (case B of 
+                [#and | #or | #xor | #eq | #neq |
+                    #lt | #gt | #lte | #gte] => #true;
+                [..] => #false);
+        end func Supports
+
+        // LOGIC_VEC supports bitwise not. Boolean supports bit not and
+        // logic not
+        func Supports(T : Scalar_Type; U : Unary_Op) -> Boolean is
+            return U == #not or else (T.Kind == #boolean
+                and then U == #logic_not);
+        end func Supports
+
+        func Supports_Special(T : Scalar_Type; S : Special_Op) -> Boolean is
+            return S == #concat and then T.Kind == #logic;
+        end func Supports_Special
+
+        func Size(T : Scalar_Type) -> Univ_Integer is
+            return 1;
+        end func Size
+    end class Scalar_Type
+
+    class Vector_Type is
+        const Kind : Vec_Type_Kind;
+        const Size : Univ_Integer;
+    exports
+        func Create(K : Vec_Type_Kind; S : Univ_Integer) -> Vector_Type is
+            return with (Kind => K, Size => S);
+        end func Create
+
+        op "=?"(L : Vector_Type; R : Vector_Type) -> Ordering is
+            if L.Kind == R.Kind and then L.Size == R.Size then
+                return #equal;
+            end if
+            return #unordered;
+        end op "=?"
+
+        func Generate(ref S : Vector_Type) -> Univ_String is
+            const T := (case S.Kind of
+                [#logic] => "STD_LOGIC_VEC";
+                [#int] => "SIGNED";
+                [#uint] => "UNSIGNED");
+            // @TODO: Codegen for ascending vec order
+            return T | "(" | (S.Size - 1) | " downto " |  " 0)";
+        end func Generate
+
+        func Supports(T : Vector_Type; B : Binary_Op) -> Boolean is
+            Println(Generate(T) | " : " | To_String(B));
+            return (case B of
+                [#and | #or | #xor | #eq | #neq] => #true;
+                [..] => T.Kind == #int or else T.Kind == #uint);
+        end func Supports
+
+        func Supports(T : Vector_Type; U : Unary_Op) -> Boolean is
+            return (case U of
+                [#not] => #true;
+                [#negation] => T.Kind == #int;
+                [#logic_not] => #false);
+        end func Supports
+
+        func Supports_Special(T : Vector_Type; S : Special_Op) -> Boolean is
+            return #true;
+        end func Supports_Special
+
+        func Size(T : Vector_Type) -> Univ_Integer is
+            return T.Size;
+        end func Size
+    end class Vector_Type
+
+    class Bool_Literal is
+        const Value : Boolean;
+    exports
+        func Create(B : Boolean) -> Bool_Literal is
+            return (Value => B);
+        end func Create
+
+        func Generate(ref B : Bool_Literal) -> Univ_String is
+            if B.Value then
+                return "true";
+            else
+                return "false";
+            end if
+        end func Generate
+
+        func Get_Type(B : Bool_Literal) -> Type+ is
+            return Bool_Type;
+        end func Get_Type
+    end class Bool_Literal
+    
+    class Logic_Literal is
+        const Value : Univ_Character;
+    exports
+        func Generate(ref L : Logic_Literal) -> Univ_String is
+            return "'" | L.Value | "'";
+        end func Generate
+
+        func Create(L : Univ_Integer) -> Logic_Literal is
+            return (Value => (if L == 0 then '0' else '1'));
+        end func Create
+
+        func Get_Type(L : Logic_Literal) -> Type+ is
+            return Logic_Type;
+        end func Get_Type
+    end class Logic_Literal
+
+    class Vec_Literal is
+        const Value : Univ_String;
+        const Kind : Vec_Type_Kind;
+    exports
+        func Generate(ref V : Vec_Literal) -> Univ_String is
+            return "\"" | V.Value | "\"";
+        end func Generate
+
+        func Create(S : Univ_String; Kind : Vec_Type_Kind) -> Vec_Literal is
+            return (Value => S, Kind => Kind);
+        end func Create
+
+        func Get_Type(V : Vec_Literal) -> Type+ is
+            return Vector_Type::Create(V.Kind, |V.Value|);
+        end func Get_Type
+    end class Vec_Literal
+
+    class In_Port is
+        const Ident : Univ_String;
+        const T : Type+;
+    exports
+        func Create(Name : Identifier; T : Type+) -> In_Port is
+            return (Ident => Name, T => T);
+        end func Create
+
+        func Generate(ref I : In_Port) -> Univ_String is
+            return I.Ident;
+        end func Generate
+
+        func Definition(ref I : In_Port) -> Univ_String is
+            return I.Ident | " : in " | Generate(I.T);
+        end func Definition
+
+        func Get_Type(I : In_Port) -> Type+ is
+            return I.T;
+        end func Get_Type
+    end class In_Port
+
+    class Out_Port is
+        const Ident : Univ_String;
+        const T : Type+;
+    exports
+        func Create(Name : Identifier; T : Type+) -> Out_Port is
+            return (Ident => Name, T => T);
+        end func Create
+
+        func Generate(ref O : Out_Port) -> Univ_String is
+            return O.Ident;
+        end func Generate
+
+        func Definition(ref O: Out_Port) -> Univ_String is
+            return O.Ident | " : out " | Generate(O.T);
+        end func Definition
+
+        func Get_Type(O : Out_Port) -> Type+ is
+            return O.T;
+        end func Get_Type
+    end class Out_Port
+
+    class Register is
+        const Ident : Univ_String;
+        const T : Type+;
+        const Init_Value : optional Literal+;
+    exports
+        func Create(Name : Identifier; T : Type+; Init_Val : optional Literal+) -> Register is
+            return (Ident => Name, T => T,
+                Init_Value => Init_Val);
+        end func Create
+
+        func Generate(ref C : Register) -> Univ_String is
+            return C.Ident;
+        end func Generate
+
+        func Definition(ref R : Register) -> Univ_String is
+            var Signal_Text := "signal " | R.Ident | ": " | Generate(R.T);
+            if R.Init_Value not null then
+                Signal_Text := Signal_Text | " := " | Generate(R.Init_Value);
+            end if
+            return Signal_Text;
+        end func Definition
+
+        func Get_Type(R : Register) -> Type+ is
+            return R.T;
+        end func Get_Type
+    end class Register
+
+    func Generate(ref U : Unary_Op) -> Univ_String is
+        case U of
+            [#not | #logic_not] => return "not ";
+            [#negation] => return "-";
+        end case
+    end func Generate
+
+    func Generate(ref B : Binary_Op) -> Univ_String is
+        return (case B of
+            [#add] => "+";
+            [#sub] => "-";
+            [#mult] => "*";
+            [#div] => "/";
+            [#and] => "and";
+            [#or] => "or";
+            [#xor] => "xor";
+            [#mod] => "mod";
+            [#eq] => "=";
+            [#neq] => "/=";
+            [#lt] => "<";
+            [#lte] => "<=";
+            [#gt] => ">";
+            [#gte] => ">=");
+    end func Generate
+
+    class Unary is
+        const Operation : Unary_Op;
+        const Operand : Expression+;
+    exports
+        func Create(Op : Unary_Op; Value : Expression+) -> Unary is
+            return (Operation => Op, Operand => Value);
+        end func Create
+
+        func Generate(ref U : Unary) -> Univ_String is
+            return Paren(Generate(U.Operation) | Generate(U.Operand));
+        end func Generate
+
+        func Get_Type(U : Unary) -> Type+ is
+            if Returns_Bool(U.Operation) then
+                return Bool_Type;
+            else
+                return Get_Type(U.Operand);
+            end if
+        end func Get_Type
+    end class Unary
+
+    class Binary is
+        const Operation : Binary_Op;
+        const Right : Expression+;
+        const Left : Expression+;
+    exports
+        func Create(Op : Binary_Op; L : Expression+; R : Expression+) -> Binary is
+            Println("TEST: " | Generate(L));
+            //if L.Value_Type == R.Value_Type then
+            //    Println("OKAY");
+            //end if
+            return (Operation => Op, Right => R, Left => L);
+        end func Create
+
+        func Generate(ref B : Binary) -> Univ_String is
+            return Paren(Generate(B.Left) | Space | Generate(B.Operation)
+                | Space | Generate(B.Right));
+        end func Generate
+
+        func Get_Type(B : Binary) -> Type+ is
+            if Returns_Bool(B.Operation) then
+                return Bool_Type;
+            else
+                return Get_Type(B.Right);
+            end if
+        end func Get_Type
+    end class Binary
+
+    class Index_Access is
+        const Value : Expression+;
+        const Index : Univ_Integer;
+    exports
+        func Create(E : Expression+; Index : Univ_Integer) -> Index_Access is
+            return (Value => E, Index => Index);
+        end func Create
+
+        func Generate(ref I : Index_Access) -> Univ_String is
+            return Generate(I.Value) | Paren(To_String(I.Index));
+        end func Generate
+
+        func Get_Type(I : Index_Access) -> Type+ is
+            return Logic_Type;
+        end func Get_Type
+    end class Index_Access
+
+    func Generate(ref B : Block) -> Univ_String is
+        var Block_Str : Univ_String := "";
+        for I in 1..|B| forward loop
+            Block_Str := Block_Str | Generate(B[I]) | "\n";
+        end loop
+        return Block_Str;
+    end func Generate
+
+    class Assignment is
+        const Assignee : LValue+;
+        const Value : Expression+;
+    exports
+        func Create(A : LValue+; V : Expression+) -> Assignment is
+            return (Assignee => A, Value => V);
+        end func Create
+
+        func Generate(ref A : Assignment) -> Univ_String is
+            return Paren(Generate(A.Assignee) | " <= " | Generate(A.Value) | ";");
+        end func Generate
+    end class Assignment
+
+    class Condition_Body is
+    exports
+        func Create(C : Expression+; B : Block) -> Condition_Body is
+            return (Condition => C, Body => B);
+        end func Create
+    end class Condition_Body
+
+    class If_Chain is
+    exports
+        func Generate(ref I : If_Chain) -> Univ_String is
+            var If_Str := "if " | Generate(I.Main.Condition) | " then\n" |
+                          Generate(I.Main.Body);
+
+            for Ind in 1..|I.Elifs| forward loop
+                const Elif_Str := "elsif " | Generate(I.Elifs[Ind].Condition) |
+                                  " then\n" | Generate(I.Elifs[Ind].Body);
+                If_Str := If_Str | Elif_Str;
+            end loop
+
+            if I.Else not null then
+                If_Str := If_Str | "else\n" | Generate(I.Else);
+            end if
+
+            return If_Str | "end if";
+        end func Generate
+
+    end class If_Chain
+
+    class Edge_Check is
+        const Clock : In_Port;
+        const Kind : Clock_Edge;
+    exports
+        func Create(Clock_Name : In_Port; Kind : Clock_Edge) -> Edge_Check is
+            return (Clock => Clock_Name, Kind => Kind);
+        end func Create
+
+        func Generate(ref E : Edge_Check) -> Univ_String is
+            const Function := (case E.Kind of
+                [#rising] => "rising_edge";
+                [#falling] => "falling_edge");
+            return Function | Paren(Generate(E.Clock));
+        end func Generate
+
+        func Get_Type(E : Edge_Check) -> Type+ is
+            return Bool_Type;
+        end func Get_Type
+    end class Edge_Check
+
+    class Process is
+    exports
+        func Generate(ref P : Process) -> Univ_String is
+            var SL : Univ_String := "";
+            for I in 1..|P.Sensitivity_List| forward loop
+                SL := SL | Generate(P.Sensitivity_List[I]);
+                if I < |P.Sensitivity_List| then
+                    SL := SL | ", ";
+                end if
+            end loop
+
+            const Name : Univ_String := P.Name;
+            return Name | ": process" | Paren(SL) | "\nbegin\n" |
+                Generate(P.Body) | "\nend process " | Name | ";";
+        end func Generate
+    end class Process
+
+    class Entity is
+    exports
+        func Generate(ref E : Entity) -> Univ_String is
+            var Ports := "";
+            var Registers := "";
+            var Processes := "";
+
+            for I in 1..|E.Inputs| forward loop
+                if I > 1 then
+                    Ports := ";\n";
+                end if
+                Ports := Ports | Definition(E.Inputs[I]);
+            end loop
+
+            for I in 1..|E.Outputs| forward loop
+                Ports := Ports | ";\n" | Definition(E.Outputs[I]);
+            end loop
+
+            for I in 1..|E.Registers| forward loop
+                Registers := Registers | Definition(E.Registers[I]) | ";\n";
+            end loop
+
+            for I in 1..|E.Processes| forward loop
+                Processes := Processes | Generate(E.Processes[I]) | "\n";
+            end loop
+
+            const E_Text := "entity " | E.Name | " is\nport" |
+                            Paren(Ports) | ";\nend entity;\n";
+            const A_Text := "architecture " | E.Name | "_Behavior of " |
+                            E.Name | " is\n" | Registers | "begin\n" |
+                            Processes | "end architecture;\n";
+            return E_Text | A_Text;
+        end func Generate
+    end class Entity
+
+    func Test() is
+        const A := In_Port::Create("A", Logic_Type);
+        const B := In_Port::Create("B", Logic_Type);
+        const C := In_Port::Create("C", Logic_Type);
+        const D := Out_Port::Create("D", Logic_Type);
+
+        //const A_Port : Readable_Ident+ := A;
+        //const B_Port : Readable_Ident+ := B;
+        //var Or_Expr := Unary::Create(#not, Bool_Literal::Create(#true));
+        const And_Expr : Binary := Binary::Create(#and, A, B);
+        //Println(Generate(And_Expr))
+        //const O : Binary_Op := #and;
+        //Println("TEST: " | Supports(A.Value_Type, O));
+        var S : Statement+ := And_Expr;
+        //Println(Generate(And_Expr))
+
+        var SL : Vector<Readable_Ident+> := [A, B, D];
+        var BS : Vector<Statement+> := [And_Expr];
+        const Main_Proc : Process := (Name => "Test",
+            Sensitivity_List => SL,
+            Body => BS);
+
+        Println(Generate(Main_Proc));
+    end func Test
+end class SailGate::Builder

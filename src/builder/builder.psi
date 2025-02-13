@@ -1,0 +1,270 @@
+import SailGate::*;
+import SailGate::Util::*;
+
+interface SailGate::Builder<> is
+    /// Base class for any objects that can be seralized to
+    /// VHDL
+    abstract interface Codegen<> is
+        func Generate(ref C : Codegen) -> Univ_String;
+    end interface Codegen
+
+    /// Checks if a string is a valid VHDL identifier
+    /// E.g. matches /^[a-z]\w*$/i
+    func Is_Valid_Ident(S : Univ_String) -> Boolean;
+
+    /// Check if a string is completely ones and zeroes
+    func Is_Valid_Bitstring(S : Univ_String) -> Boolean;
+
+    /// Syntax validated and case normalized identifier
+    interface Identifier<> is
+        op "from_univ"(S : Univ_String {Is_Valid_Ident(S)}) -> Identifier;
+        op "to_univ"(I : Identifier) -> Univ_String;
+    end interface Identifier
+
+    /// VHDL operands
+    type Binary_Op is Enum<[#add, #sub, #mult, #div,
+        #and, #or, #xor, #mod, #eq, #neq, #lt, #gt,
+        #lte, #gte]>;
+    type Unary_Op is Enum<[#not, #negation, #logic_not]>;
+    type Special_Op is Enum<[#index, #slice, #arith_shift,
+                             #logic_shift, #concat]>;
+
+    /// Base class for VHDL types
+    abstract interface Type<> extends Codegen<> is
+        op "=?"(L : Type; R : Type) -> Ordering;
+        func Supports(T : Type; B : Binary_Op) -> Boolean;
+        func Supports(T : Type; U : Unary_Op) -> Boolean;
+        func Supports_Special(T : Type; S : Special_Op) -> Boolean;
+        func Size(T : Type) -> Univ_Integer;
+    end interface Type
+
+    /// Type enums. The actual type classes can have more
+    /// metadata
+    type Scalar_Type_Kind is Enum<[#logic, #boolean]>;
+    type Vec_Type_Kind is Enum<[#logic, #int, #uint]>;
+
+    /// Scalar types (booleans and logic units)
+    interface Scalar_Type<> extends Type<> is
+        func Create(S : Scalar_Type_Kind) -> Scalar_Type;
+        op "=?"(L : Scalar_Type; R : Scalar_Type) -> Ordering;
+        func Generate(ref S : Scalar_Type) -> Univ_String;
+        func Supports(T : Scalar_Type; B : Binary_Op) -> Boolean;
+        func Supports(T : Scalar_Type; U : Unary_Op) -> Boolean;
+        func Supports_Special(T : Scalar_Type; S : Special_Op) -> Boolean;
+        func Size(T : Scalar_Type) -> Univ_Integer;
+    end interface Scalar_Type
+
+    const Bool_Type : Type+ := Scalar_Type::Create(#boolean);
+    const Logic_Type : Type+ := Scalar_Type::Create(#logic);
+
+    /// Vector types (unsigned, signed, and logic vec)
+    interface Vector_Type<> extends Type<> is
+        func Create(K : Vec_Type_Kind; S : Univ_Integer {S > 0})
+            -> Vector_Type;
+        op "=?"(L : Vector_Type; R : Vector_Type) -> Ordering;
+        func Generate(ref S : Vector_Type) -> Univ_String;
+        func Supports(T : Vector_Type; B : Binary_Op) -> Boolean;
+        func Supports(T : Vector_Type; U : Unary_Op) -> Boolean;
+        func Supports_Special(T : Vector_Type; S : Special_Op) -> Boolean;
+        func Size(T : Vector_Type) -> Univ_Integer;
+    end interface Vector_Type
+
+    /// The base class for an active value that is typed.
+    /// This information is used for type verification
+    abstract interface Typed_Value<> extends Codegen<> is
+        func Get_Type(T : Typed_Value) -> Type+;
+    end interface Typed_Value
+
+    /// Base class for typed values that can be read
+    abstract interface Expression<> extends Typed_Value<> is
+    end interface Expression
+
+    /// Base class for literal values
+    abstract interface Literal<> extends Expression<> is
+    end interface Literal
+
+    /// Boolean literal
+    interface Bool_Literal<> implements Literal<> is
+        func Generate(ref B : Bool_Literal) -> Univ_String;
+        func Create(B : Boolean) -> Bool_Literal;
+        func Get_Type(B : Bool_Literal) -> Type+;
+    end interface Bool_Literal
+
+    /// Logic literal
+    interface Logic_Literal<> implements Literal<> is
+        func Generate(ref L : Logic_Literal) -> Univ_String;
+        func Create(L : Univ_Integer {L in 0..1}) -> Logic_Literal;
+        func Get_Type(L : Logic_Literal) -> Type+;
+    end interface Logic_Literal
+
+    /// Vector type literal
+    interface Vec_Literal<> implements Literal<> is
+        func Generate(ref V : Vec_Literal) -> Univ_String;
+        func Create(S : Univ_String {Is_Valid_Bitstring(S)};
+            Kind : Vec_Type_Kind) -> Vec_Literal;
+        func Get_Type(V : Vec_Literal) -> Type+;
+    end interface Vec_Literal
+
+    /// The base class for any LValue. These are values that
+    /// can be assigned values
+    abstract interface LValue<> extends Typed_Value<> is
+    end interface LValue
+
+    /// An identifier with a seperate definition and
+    abstract interface Declared<> implements Codegen<> is
+        func Definition(ref I : Declared) -> Univ_String;
+    end interface Declared
+
+    /// Readable identifier (in ports, signals)
+    abstract interface Readable_Ident<> implements Expression<>, Declared<> is
+        func Definition(ref I : Readable_Ident) -> Univ_String;
+        func Generate(ref I : Readable_Ident) -> Univ_String;
+    end interface Readable_Ident
+
+    /// Writable identifier (out ports, signals)
+    abstract interface Writable_Ident<> implements LValue<>, Declared<> is
+        func Definition(ref W : Writable_Ident) -> Univ_String;
+        func Generate(ref W : Writable_Ident) -> Univ_String;
+    end interface Writable_Ident
+
+    /// Read-only "in" ports
+    interface In_Port<> implements Readable_Ident<> is
+        func Create(Name : Identifier; T : Type+) -> In_Port;
+        func Generate(ref I : In_Port) -> Univ_String;
+        func Definition(ref I : In_Port) -> Univ_String;
+        func Get_Type(I : In_Port) -> Type+;
+    end interface In_Port
+
+    /// Write-only "out" ports
+    interface Out_Port<> implements Writable_Ident<> is
+        func Create(Name : Identifier; T : Type+) -> Out_Port;
+        func Generate(ref O : Out_Port) -> Univ_String;
+        func Definition(ref O : Out_Port) -> Univ_String;
+        func Get_Type(O : Out_Port) -> Type+;
+    end interface Out_Port
+
+    /// Read and write registers
+    interface Register<> implements Readable_Ident<>, Writable_Ident<> is
+        func Create(Name : Identifier; T : Type+;
+            Init_Val : optional Literal+ {Init_Val is null or else
+                Get_Type(Init_Val) == T}) -> Register;
+        func Generate(ref C : Register) -> Univ_String;
+        func Definition(ref R : Register) -> Univ_String;
+        func Get_Type(R : Register) -> Type+;
+    end interface Register
+
+    /// Convert operators to strings
+    func Generate(ref U : Unary_Op) -> Univ_String;
+    func Generate(ref B : Binary_Op) -> Univ_String;
+
+    /// Unary operation expression
+    interface Unary<> implements Expression<> is
+        func Create(Op : Unary_Op; Value : Expression+
+            {Supports(Get_Type(Value), Op)}) -> Unary;
+        func Generate(ref U : Unary) -> Univ_String;
+        func Get_Type(U : Unary) -> Type+;
+    end interface Unary
+
+    /// Binary operation expression
+    interface Binary<> implements Expression<> is
+        func Create(Op : Binary_Op; L : Expression+ {Supports(Get_Type(L), Op)};
+            R : Expression+ {Get_Type(R) == Get_Type(L)}) -> Binary;
+        func Generate(ref B : Binary) -> Univ_String;
+        func Get_Type(B : Binary) -> Type+;
+    end interface Binary
+
+    interface Index_Access<> implements Expression<>, LValue<> is
+        func Create(E : Expression+ {Supports_Special(Get_Type(E), #index)};
+            Index : Univ_Integer {Index >= 0 and then Index < Size(Get_Type(E))})
+                -> Index_Access;
+        func Generate(ref I : Index_Access) -> Univ_String;
+        func Get_Type(I : Index_Access) -> Type+;
+    end interface Index_Access
+
+    interface Slice_Access<> implements Expression<>, LValue<> is
+        func Create(E : Expression+ {Supports_Special(Get_Type(E), #slice)};
+            Start : Univ_Integer {Start >= 0}; End : Univ_Integer
+            {End < Size(Get_Type(E)) and then End > Start})
+                -> Slice_Access;
+        func Generate(ref S : Slice_Access) -> Univ_String;
+        func Get_Type(S : Slice_Access) -> Type+;
+    end interface Slice_Access
+
+    interface Concat<> implements Expression<>, LValue<> is
+        func Create(L : Expression+ {Supports_Special(Get_Type(L), #concat)};
+            R : Expression+ {Supports_Special(Get_Type(R), #concat) }) -> Concat;
+        func Generate(ref C : Concat) -> Univ_String;
+        func Get_Type(C : Concat) -> Type+;
+    end interface Concat
+
+    /// Base class for statements. These are instructions that
+    /// can be found inside a procedure body.
+    abstract interface Statement<> is
+        func Generate(ref S : Statement) -> Univ_String;
+    end interface Statement
+
+    type Block is Vector<Statement+>;
+    func Generate(ref B : Block) -> Univ_String;
+
+    /// Assignment statement base class
+    interface Assignment<> implements Statement<> is
+        func Create(A : LValue+; V : Expression+
+            {Get_Type(A) == Get_Type(V)}) -> Assignment;
+        func Generate(ref A : Assignment) -> Univ_String;
+    end interface Assignment
+
+    /// Value that contains a condition and a body. Used for if
+    /// statements and loops
+    interface Condition_Body<> is
+        const Condition : Expression+;
+        const Body : Block;
+
+        func Create(C : Expression+ {Get_Type(C) == Bool_Type};
+            B : Block) -> Condition_Body;
+    end interface Condition_Body
+
+    /// If statement control flow
+    interface If_Chain<> implements Statement<> is
+        const Main : Condition_Body;
+        const Elifs : Vector<Condition_Body>;
+        const Else : optional Block;
+
+        func Generate(ref I : If_Chain) -> Univ_String;
+    end interface If_Chain
+
+    type Clock_Edge is Enum<[#rising, #falling]>;
+    interface Edge_Check<> implements Expression<> is
+        func Create(Clock_Name : In_Port {Get_Type(Clock_Name) == Logic_Type};
+            Kind : Clock_Edge := #rising) -> Edge_Check;
+        func Generate(ref E : Edge_Check) -> Univ_String;
+        func Get_Type(E : Edge_Check) -> Type+;
+    end interface Edge_Check
+
+    /// Class for a process
+    interface Process<> implements Codegen<> is
+        const Name : Identifier;
+        const Sensitivity_List : Vector<Readable_Ident+>;
+        const Body : Vector<Statement+>;
+
+        func Generate(ref P : Process) -> Univ_String;
+    end interface Process
+
+    /// Entity + architecture class
+    interface Entity<> implements Codegen<> is
+        const Name : Univ_String;
+        const Inputs : Vector<In_Port>;
+        const Outputs : Vector<Out_Port>;
+        const Registers : Vector<Register>;
+        const Processes : Vector<Process>;
+
+        func Generate(ref E : Entity) -> Univ_String;
+    end interface Entity
+
+    interface Design<> is
+
+    end interface Design
+
+    func Test();
+end interface SailGate::Builder
+
+

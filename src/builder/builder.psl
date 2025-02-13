@@ -90,7 +90,6 @@ exports
 
         // All bit and comparison operators are supported
         func Supports(T : Scalar_Type; B : Binary_Op) -> Boolean is
-            Println(Generate(T) | " : " | To_String(B));
             return (case B of 
                 [#and | #or | #xor | #eq | #neq |
                     #lt | #gt | #lte | #gte] => #true;
@@ -330,14 +329,11 @@ exports
 
     class Binary is
         const Operation : Binary_Op;
-        const Right : Expression+;
-        const Left : Expression+;
+        var Right : Expression+;
+        var Left : Expression+;
     exports
         func Create(Op : Binary_Op; L : Expression+; R : Expression+) -> Binary is
-            Println("TEST: " | Generate(L));
-            //if L.Value_Type == R.Value_Type then
-            //    Println("OKAY");
-            //end if
+            Println(Generate(L))
             return (Operation => Op, Right => R, Left => L);
         end func Create
 
@@ -389,7 +385,7 @@ exports
         end func Create
 
         func Generate(ref A : Assignment) -> Univ_String is
-            return Paren(Generate(A.Assignee) | " <= " | Generate(A.Value) | ";");
+            return Generate(A.Assignee) | " <= " | Paren(Generate(A.Value)) | ";";
         end func Generate
     end class Assignment
 
@@ -454,7 +450,7 @@ exports
 
             const Name : Univ_String := P.Name;
             return Name | ": process" | Paren(SL) | "\nbegin\n" |
-                Generate(P.Body) | "\nend process " | Name | ";";
+                Generate(P.Body) | "end process " | Name | ";";
         end func Generate
     end class Process
 
@@ -467,21 +463,21 @@ exports
 
             for I in 1..|E.Inputs| forward loop
                 if I > 1 then
-                    Ports := ";\n";
+                    Ports |= ";\n";
                 end if
-                Ports := Ports | Definition(E.Inputs[I]);
+                Ports |= Definition(E.Inputs[I]);
             end loop
 
             for I in 1..|E.Outputs| forward loop
-                Ports := Ports | ";\n" | Definition(E.Outputs[I]);
+                Ports |= ";\n" | Definition(E.Outputs[I]);
             end loop
 
             for I in 1..|E.Registers| forward loop
-                Registers := Registers | Definition(E.Registers[I]) | ";\n";
+                Registers |= Definition(E.Registers[I]) | ";\n";
             end loop
 
             for I in 1..|E.Processes| forward loop
-                Processes := Processes | Generate(E.Processes[I]) | "\n";
+                Processes |= Generate(E.Processes[I]) | "\n";
             end loop
 
             const E_Text := "entity " | E.Name | " is\nport" |
@@ -493,28 +489,40 @@ exports
         end func Generate
     end class Entity
 
+    class Design is
+    exports
+        func Generate(ref D : Design) -> Univ_String is
+            var Code := "library ieee;\n" |
+                "use ieee.std_logic_1164.all;\n" |
+                "use ieee.numeric_std.all;\n";
+            for I in 1..|D.Entities| forward loop
+                Code |= Generate(D.Entities[I]);
+            end loop
+            return Code;
+        end func Generate
+    end class Design
+
     func Test() is
         const A := In_Port::Create("A", Logic_Type);
         const B := In_Port::Create("B", Logic_Type);
-        const C := In_Port::Create("C", Logic_Type);
-        const D := Out_Port::Create("D", Logic_Type);
+        const C := Out_Port::Create("C", Logic_Type);
 
-        //const A_Port : Readable_Ident+ := A;
-        //const B_Port : Readable_Ident+ := B;
-        //var Or_Expr := Unary::Create(#not, Bool_Literal::Create(#true));
-        const And_Expr : Binary := Binary::Create(#and, A, B);
-        //Println(Generate(And_Expr))
-        //const O : Binary_Op := #and;
-        //Println("TEST: " | Supports(A.Value_Type, O));
-        var S : Statement+ := And_Expr;
-        //Println(Generate(And_Expr))
+        const And_Expr : Expression+ := Binary::Create(#and, A, B);
+        Println(Generate(And_Expr));
+        const Assignment_Stmt := Assignment::Create(C, A);
 
-        var SL : Vector<Readable_Ident+> := [A, B, D];
-        var BS : Vector<Statement+> := [And_Expr];
+        var SL : Vector<Readable_Ident+> := [A, B];
+        var BS : Vector<Statement+> := [Assignment_Stmt];
         const Main_Proc : Process := (Name => "Test",
-            Sensitivity_List => SL,
-            Body => BS);
+            Sensitivity_List => SL, Body => BS);
 
-        Println(Generate(Main_Proc));
+        var E : Entity := (Name => "My_Entity",
+            Inputs => [A, B], Outputs => [C],
+            Registers => [], Processes => [Main_Proc]);
+
+        var Entities : Vector<Entity> := [E];
+        var D : Design := (Entities => Entities);
+
+        Println(Generate(D));
     end func Test
 end class SailGate::Builder

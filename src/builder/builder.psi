@@ -260,8 +260,10 @@ interface SailGate::Builder<> is
         func Generate(ref E : Entity) -> Univ_String;
     end interface Entity
 
-    interface Design<> is
+    interface Design<> implements Codegen<> is
+        const Entities : Vector<Entity>;
 
+        func Generate(ref D : Design) -> Univ_String;
     end interface Design
 
     func Test();

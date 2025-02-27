@@ -1,0 +1,380 @@
+import SailGate::*;
+import SailGate::Util::*;
+
+interface SailGate::Builder::VHDL<> is
+    /// Checks if a string is a valid VHDL identifier
+    /// E.g. matches /^[a-z]\w*$/i
+    func Is_Valid_Ident(S : Univ_String) -> Boolean;
+
+    /// Check if a string is completely ones and zeroes
+    func Is_Valid_Bitstring(S : Univ_String) -> Boolean;
+
+    /// Syntax validated and case normalized identifier
+    interface Ident_String<> implements Comparable<> is
+        op "from_univ"(S : Univ_String {Is_Valid_Ident(S)}) -> Ident_String;
+        op "to_univ"(I : Ident_String) -> Univ_String;
+        op "=?"(L, R : Ident_String) -> Ordering;
+        func Strict_Compare(L, R : Ident_String) -> Ordered::Full_Ordering;
+    end interface Ident_String
+
+    interface Bit_String<> is
+        op "from_univ"(S : Univ_String {Is_Valid_Bitstring(S)}) -> Bit_String;
+        op "to_univ"(B : Bit_String) -> Univ_String;
+    end interface Bit_String
+
+    /// VHDL operands
+    type Binary_Op is Enum<[#add, #sub, #mult, #div,
+        #and, #or, #xor, #mod, #eq, #neq, #lt, #gt,
+        #lte, #gte]>;
+    type Unary_Op is Enum<[#not, #negation, #logic_not]>;
+    type Special_Op is Enum<[#index, #slice, #arith_shift,
+                             #logic_shift, #concat]>;
+
+    /// Type enums. The actual type classes can have more
+    /// metadata
+    type Scalar_Type_Kind is Enum<[#logic, #boolean]>;
+    type Vec_Type_Kind is Enum<[#logic, #int, #uint]>;
+    type Vec_Dir is Enum<[#up, #down]>;
+
+    type Index_Range is Countable_Range<Univ_Integer>;
+
+    interface Vec_Range<> is
+        type Index is Integer<0..2**32-1>;
+        type Length is Integer<1..2**32-1>;
+
+        const First : Index;
+        const Last : Index;
+
+        op ".."(L, R : Index) -> Vec_Range;
+        func Create(Len : Length; Offset : Index;
+                    Dir : Vec_Dir) -> Vec_Range;
+
+        func Get_Max(V : Vec_Range) -> Index;
+        func Get_Min(V : Vec_Range) -> Index;
+        func Get_Dir(V : Vec_Range) -> Vec_Dir;
+        func Get_Size(V : Vec_Range) -> Length;
+
+        op "in"(Left : Index; Right : Vec_Range) -> Boolean;
+        op "in"(L, R : Vec_Range) -> Boolean;
+
+        func Get_Nth(V : Vec_Range; I : Index {[[I]] < Get_Size(V)}) -> Index;
+        func Gen_Range(V : Vec_Range) -> Univ_String;
+    end interface Vec_Range
+
+    /// Base class for VHDL types
+    abstract interface Type<> is
+        op "=?"(L : Type; R : Type) -> Ordering;
+        func Gen_Type(T : Type) -> Univ_String;
+        func Supports(T : Type; B : Binary_Op) -> Boolean;
+        func Supports(T : Type; U : Unary_Op) -> Boolean;
+        func Supports_Special(T : Type; S : Special_Op) -> Boolean;
+        func Range(T : Type) -> optional Vec_Range;
+        func Type_Id(T : Type) -> Univ_Enumeration;
+    end interface Type
+
+    /// Scalar types (booleans and logic units)
+    interface Scalar_Type<> extends Type<> is 
+        func Create(S : Scalar_Type_Kind) -> Scalar_Type;
+        op "=?"(L : Scalar_Type; R : Scalar_Type) -> Ordering;
+        func Gen_Type(S : Scalar_Type) -> Univ_String;
+        func Supports(S : Scalar_Type; B : Binary_Op) -> Boolean;
+        func Supports(S : Scalar_Type; U : Unary_Op) -> Boolean;
+        func Supports_Special(S : Scalar_Type; Sp : Special_Op) -> Boolean;
+        func Range(S : Scalar_Type) -> optional Vec_Range;
+        func Type_Id(S : Scalar_Type) -> Univ_Enumeration;
+    end interface Scalar_Type
+
+    const Bool_Type : Type+ := Scalar_Type::Create(#boolean);
+    const Logic_Type : Type+ := Scalar_Type::Create(#logic);
+
+    /// Vector types (unsigned, signed, and logic vec)
+    interface Vector_Type<> extends Type<> is
+        func Create(K : Vec_Type_Kind; R : Vec_Range) -> Vector_Type;
+        op "=?"(L : Vector_Type; R : Vector_Type) -> Ordering;
+        func Gen_Type(V : Vector_Type) -> Univ_String;
+        func Supports(V : Vector_Type; B : Binary_Op) -> Boolean;
+        func Supports(V : Vector_Type; U : Unary_Op) -> Boolean;
+        func Supports_Special(V : Vector_Type; S : Special_Op) -> Boolean;
+        func Range(V : Vector_Type) -> optional Vec_Range;
+        func Type_Id(V : Vector_Type) -> Univ_Enumeration;
+    end interface Vector_Type
+
+    /// Access kind. This type dictates whether something is read,
+    /// write, or readwrite
+    type Access_Kind is Enum<[#readable, #writable, #readwrite]>;
+    func Readable(A : Access_Kind) -> Boolean;
+    func Writable(A : Access_Kind) -> Boolean;
+
+    /// Base interface for values with a type
+    abstract interface Typed<> is
+        func Get_Type(ref T : Typed) -> Type+;
+    end interface Typed
+
+    /// The base class for an active value that is typed.
+    /// This information is used for type verification
+    abstract interface Expression<> extends Typed<> is
+        /// Access - Is the expression read, write, or readwrite?
+        func Access(ref E : Expression) -> Access_Kind;
+
+        /// Is_Static - is the expression a compile-time known value?
+        func Is_Static(ref E : Expression) -> Boolean;
+
+        /// Gen_Expr - converts the expression to a VHDL string
+        func Gen_Expr(ref E : Expression) -> Univ_String;
+    end interface Expression
+
+    /// Assertion functions for checking access type
+    func Readable(ref E : Expression+) -> Boolean;
+    func Writable(ref E : Expression+) -> Boolean;
+
+    interface Literal<> extends Expression<> is
+        func Gen_Expr(ref L : Literal) -> Univ_String;
+        func Access(ref L : Literal) -> Access_Kind;
+        func Is_Static(ref L : Literal) -> Boolean;
+        func Get_Type(ref L : Literal) -> Type+;
+        func Bool(B : Boolean) -> Literal;
+        func Logic(L : Univ_Character {L in '0'..'1'}) -> Literal;
+        func Vec(S : Bit_String; Kind : Vec_Type_Kind) -> Literal;
+    end interface Literal
+
+    /// Identifier referencing variable
+    interface Identifier<> implements Expression<> is
+        func Create(Name : Ident_String; T : Type+;
+            Access : Access_Kind) -> Identifier;
+        func Gen_Expr(ref I : Identifier) -> Univ_String;
+        func Get_Type(ref I : Identifier) -> Type+;
+        func Access(ref I : Identifier) -> Access_Kind;
+        func Is_Static(ref I : Identifier) -> Boolean;
+    end interface Identifier
+
+    /// Base class for variable definitions
+    abstract interface Variable<> extends Typed<> is
+        func Gen_Var(ref V : Variable) -> Univ_String;
+        func Ref(ref V : Variable) -> Identifier;
+        func Get_Name(ref V : Variable) -> Univ_String;
+    end interface Variable
+
+    /// Ports
+    type Port_Direction is Enum<[#in, #out]>;
+    interface Port<> implements Variable<> is
+        func In(Name : Ident_String; T : Type+) -> Port;
+        func Out(Name : Ident_String; T : Type+) -> Port;
+        func Gen_Var(ref P : Port) -> Univ_String;
+        func Ref(ref P : Port) -> Identifier;
+        func Get_Type(ref P : Port) -> Type+;
+        func Get_Name(ref P : Port) -> Univ_String;
+        func Get_Dir(ref P : Port) -> Port_Direction;
+    end interface Port
+
+    func All_In(ref Inputs : Vector<Port>) -> Boolean;
+    func All_Out(ref Outputs : Vector<Port>) -> Boolean;
+
+    /// Read and write registers
+    interface Register<> implements Variable<> is
+        func Create(Name : Ident_String; T : Type+;
+            Init_Val : optional Literal := null {Init_Val is null or else
+                Get_Type(Init_Val) == T}) -> Register;
+        func Gen_Var(ref R : Register) -> Univ_String;
+        func Ref(ref R : Register) -> Identifier;
+        func Get_Type(ref R : Register) -> Type+;
+        func Get_Name(ref R : Register) -> Univ_String;
+    end interface Register
+
+    /// Convert operators to strings
+    func Gen_Op(ref U : Unary_Op) -> Univ_String;
+    func Gen_Op(ref B : Binary_Op) -> Univ_String;
+
+    /// Unary operation expression
+    interface Unary<> implements Expression<> is
+        func Create(Op : Unary_Op; Value : Expression+ {Readable(Value)
+            and then Supports(Get_Type(Value), Op)}) -> Unary;
+        func Gen_Expr(ref U : Unary) -> Univ_String;
+        func Get_Type(ref U : Unary) -> Type+;
+        func Access(ref U : Unary) -> Access_Kind;
+        func Is_Static(ref U : Unary) -> Boolean;
+    end interface Unary
+
+    /// Binary operation expression
+    interface Binary<> implements Expression<> is
+        func Create(Op : Binary_Op; L : Expression+ 
+            {Readable(L) and then Supports(Get_Type(L), Op)};
+            R : Expression+ {Readable(R) and then
+            Get_Type(R) == Get_Type(L)}) -> Binary;
+        func Gen_Expr(ref B : Binary) -> Univ_String;
+        func Get_Type(ref B : Binary) -> Type+;
+        func Access(ref B : Binary) -> Access_Kind;
+        func Is_Static(ref B : Binary) -> Boolean;
+    end interface Binary
+
+    /// Vector index access
+    interface Index_Access<> implements Expression<> is
+        func Create(E : Expression+ {Supports_Special(Get_Type(E), #index)};
+            Index : Univ_Integer {Range(Get_Type(E)) not null
+            and then Index in Range(Get_Type(E))}) -> Index_Access;
+        func Gen_Expr(ref I : Index_Access) -> Univ_String;
+        func Get_Type(ref I : Index_Access) -> Type+;
+        func Access(ref I : Index_Access) -> Access_Kind;
+        func Is_Static(ref I : Index_Access) -> Boolean;
+    end interface Index_Access
+
+    interface Slice_Access<> implements Expression<> is
+        func Create(E : Expression+ {Is_Static(E) and then 
+            Supports_Special(Get_Type(E), #slice)};
+            Rng : Vec_Range {Range(Get_Type(E)) not null
+            and then Rng in Range(Get_Type(E))}) -> Slice_Access;
+        func Gen_Expr(ref S : Slice_Access) -> Univ_String;
+        func Get_Type(ref S : Slice_Access) -> Type+;
+        func Access(ref S : Slice_Access) -> Access_Kind;
+        func Is_Static(ref S : Slice_Access) -> Boolean;
+    end interface Slice_Access
+
+    interface Concat<> implements Expression<> is
+        func Create(L : Expression+ {Readable(L) and then 
+            Supports_Special(Get_Type(L), #concat)};
+            R : Expression+ {Readable(L) and then
+            Supports_Special(Get_Type(R), #concat) and then
+            Type_Id(Get_Type(R)) == Type_Id(Get_Type(L))}) 
+                -> Concat;
+        func Gen_Expr(ref C : Concat) -> Univ_String;
+        func Get_Type(ref C : Concat) -> Type+;
+        func Access(ref C : Concat) -> Access_Kind;
+        func Is_Static(ref C : Concat) -> Boolean;
+    end interface Concat
+
+    type Clock_Edge is Enum<[#rising, #falling]>;
+    interface Edge_Check<> implements Expression<> is
+        func Create(ref Clock : Port {Get_Dir(Clock) == #in
+            and then Get_Type(Clock) == Logic_Type};
+            Kind : Clock_Edge := #rising) -> Edge_Check;
+        func Gen_Expr(ref E : Edge_Check) -> Univ_String;
+        func Get_Type(ref E : Edge_Check) -> Type+;
+        func Access(ref E : Edge_Check) -> Access_Kind;
+        func Is_Static(ref E : Edge_Check) -> Boolean;
+    end interface Edge_Check
+
+    type Indent_Size is Integer<0..1000>;
+
+    /// Statement region kind. This determine which area of the behavior
+    /// each statement belongs in. if/loop/case go in sequential processes,
+    /// component instances go in async, and assignments can go in either
+    type Stmt_Kind is Enum<[#async, #seq, #both]>;
+    func Async(S : Stmt_Kind) -> Boolean;
+    func Sequential(S : Stmt_Kind) -> Boolean;
+
+    interface Component<> is
+        func Create(Name : Ident_String; Inputs : Vector<Port>
+            {All_In(Inputs)}; Outputs : Vector<Port>
+            {All_Out(Outputs)}) -> Component;
+        func Gen_Comp(ref C : Component;
+            Indent : Indent_Size := 0) -> Univ_String;
+        func Get_Inputs(ref C : Component) -> ref Vector<Port>;
+        func Get_Outputs(ref C : Component) -> ref Vector<Port>;
+        func Get_Name(ref C : Component) -> Univ_String;
+    end interface Component
+
+    /// Base class for statements. These are instructions that
+    /// can be found inside a procedure body.
+    abstract interface Statement<> is
+        func Gen_Stmt(ref S : Statement; Indent : Indent_Size := 0) -> Univ_String;
+        func Region(ref S : Statement) -> Stmt_Kind;
+    end interface Statement
+
+    /// Convenience functions for checking statement regions
+    func Async(ref S : Statement+) -> Boolean;
+    func Sequential(ref S : Statement+) -> Boolean;
+
+    /// Blocks representing blocks of statements
+    type Block is Vector<Statement+>;
+    func Gen_Block(ref B : Block; Indent : Indent_Size := 0) -> Univ_String;
+
+    /// Assignment statement base class
+    interface Assignment<> implements Statement<> is
+        func Create(A : Expression+ {Writable(A)};
+            V : Expression+ {Readable(V) and then
+                Get_Type(A) == Get_Type(V)}) -> Assignment;
+        func Gen_Stmt(ref A : Assignment;
+            Indent : Indent_Size := 0) -> Univ_String;
+        func Region(ref A : Assignment) -> Stmt_Kind;
+    end interface Assignment
+
+    interface Component_Instance<> implements Statement<> is
+        type Port_Map is Ordered_Map<Ident_String, optional Expression+>;
+        func Create(N : Ident_String; ref C : Component;
+                    Mappings : Port_Map) -> Component_Instance;
+        func Gen_Stmt(ref C : Component_Instance;
+            Indent : Indent_Size := 0) -> Univ_String;
+        func Region(ref C : Component_Instance) -> Stmt_Kind;
+    end interface Component_Instance
+
+    /// Value that contains a condition and a body. Used for if
+    /// statements and loops
+    interface Condition_Body<> is
+        func Create(C : Expression+ {Readable(C) and then
+            Get_Type(C) == Bool_Type}; B : Block) -> Condition_Body;
+        func Get_Cond(ref C : Condition_Body) -> ref Expression+;
+        func Get_Body(ref C : Condition_Body) -> ref Block;
+    end interface Condition_Body
+
+    /// If statement control flow
+    interface If_Chain<> implements Statement<> is
+        func Create(Main : Condition_Body;
+            Elifs : Vector<Condition_Body> := [];
+            Else : optional Block := null) -> If_Chain;
+        func Gen_Stmt(ref I : If_Chain;
+            Indent : Indent_Size := 0) -> Univ_String;
+        func Region(ref I : If_Chain) -> Stmt_Kind;
+    end interface If_Chain
+
+    type Literals is Vector<Literal>;
+    interface Case<> extends Typed<> is
+        func Create(L : Literal; B : Block) -> Case;
+        func Create(L : Literals {|L| > 0}; B : Block) -> Case;
+        func Gen_Case(ref C : Case; Indent : Indent_Size := 0) -> Univ_String;
+        func Get_Values(ref C : Case) -> ref Literals;
+        func Get_Type(ref C : Case) -> Type+;
+    end interface Case
+
+    interface Switch<> implements Statement<> is
+        func Create(E : Expression+ {Readable(E)}; Cases : Vector<Case>
+            {for all I in 1..|Cases| => Get_Type(Cases[I]) == Get_Type(E)};
+            Default : Block := []) -> Switch;
+        func Gen_Stmt(ref S : Switch; Indent : Indent_Size := 0) -> Univ_String;
+        func Region(ref S : Switch) -> Stmt_Kind;
+    end interface Switch
+
+    interface Loop<> implements Statement<> is
+        func Create(V : Vec_Range; Var_Name : Ident_String; Body : Block) -> Loop;
+        func Gen_Stmt(ref L : Loop; Indent : Indent_Size := 0) -> Univ_String;
+        func Region(ref L : Loop) -> Stmt_Kind;
+    end interface Loop
+
+    /// Class for a process
+    interface Process<> is
+        func Create(Name : Ident_String; SL : Vector<Identifier>
+            {for all I in 1..|SL| => Readable(Access(SL[I]))};
+            Body : Block {for all I in 1..|Body| =>
+                Sequential(Body[I])}) -> Process;
+        func Gen_Proc(ref P : Process;
+            Indent : Indent_Size := 0) -> Univ_String;
+    end interface Process
+
+    /// Entity + architecture class
+    interface Entity<> is
+        func Create(Name : Ident_String; Ports : Vector<Port>;
+            Registers : Vector<Register> := [];
+            Components : Vector<Component> := [];
+            Async_Region : Block := [];
+            {for all I in 1..|Async_Region| => Async(Async_Region[I])}
+            Processes : Vector<Process> := []) -> Entity;
+        func Gen_Entity(ref E : Entity) -> Univ_String;
+        func Get_Component(ref E : Entity) -> Component;
+        func Get_Name(ref E : Entity) -> Univ_String;
+    end interface Entity
+
+    interface Design<> is
+        func Create(Entities : Vector<Entity>) -> Design;
+        func Gen_Design(ref D : Design) -> Ordered_Map<Univ_String, Univ_String>;
+    end interface Design
+
+    func Test();
+end interface SailGate::Builder::VHDL

@@ -1,0 +1,51 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+import SailGate::Builder::VHDL::*;
+
+func Test() is
+    var A := Port::In("A", Logic_Type);
+    var B := Port::In("B", Logic_Type);
+    var C_In := Port::In("C_in", Logic_Type);
+    var C_Out := Port::Out("C_out", Logic_Type);
+    var Sum := Port::Out("sum", Logic_Type);
+
+    var Wire_One := Register::Create("wire1", Logic_Type, null);
+    var Wire_Two := Register::Create("wire2", Logic_Type, null);
+    var Wire_Three := Register::Create("wire3", Logic_Type, null);
+
+    var Full_Adder := Entity::Create("Full_Adder",
+        Ports => [A, B, C_In, C_Out, Sum],
+        Registers => [Wire_One, Wire_Two, Wire_Three],
+        Async_Region => [
+            Assignment::Create(Ref(Wire_One), Binary::Create(#and, Ref(A), Ref(B))),
+            Assignment::Create(Ref(Wire_Two), Binary::Create(#xor, Ref(A), Ref(B))),
+            Assignment::Create(Ref(Wire_Three), Binary::Create(
+                #xor, Ref(Wire_Two), Ref(C_In))),
+            Assignment::Create(Ref(C_Out), Binary::Create(#or, Ref(Wire_One),
+                Ref(Wire_Two))),
+            Assignment::Create(Ref(Sum), Binary::Create(#xor, Ref(Wire_Two),
+                Ref(Wire_Three))) ]);
+
+    Println(Gen_Entity(Full_Adder));
+
+    // CHECK: entity Full_Adder is
+    // CHECK: port(A : in STD_LOGIC;
+    // CHECK:      B : in STD_LOGIC;
+    // CHECK:      C_In : in STD_LOGIC;
+    // CHECK:      C_Out : out STD_LOGIC;
+    // CHECK:      Sum : out STD_LOGIC);
+    // CHECK: end entity;
+
+    // CHECK: architecture Full_Adder_Behavior of Full_Adder is
+    // CHECK:     signal Wire1: STD_LOGIC;
+    // CHECK:     signal Wire2: STD_LOGIC;
+    // CHECK:     signal Wire3: STD_LOGIC;
+    // CHECK: begin
+    // CHECK:     Wire1 <= (A and B);
+    // CHECK:     Wire2 <= (A xor B);
+    // CHECK:     Wire3 <= (Wire2 xor C_In);
+    // CHECK:     C_Out <= (Wire1 or Wire2);
+    // CHECK:     Sum <= (Wire2 xor Wire3);
+    // CHECK: end architecture;
+end func Test

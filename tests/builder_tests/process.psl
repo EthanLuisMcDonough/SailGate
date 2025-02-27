@@ -1,0 +1,21 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+// TEST ID: bu-process
+
+import SailGate::Builder::VHDL::*;
+
+func Test() is
+    var A := Port::In("A", Logic_Type);
+    var B := Port::In("B", Logic_Type);
+    var C := Port::In("C", Logic_Type);
+
+    var Main_Proc := Process::Create("main_proc",
+        SL => [Ref(A), Ref(B), Ref(C)],
+        Body => []);
+
+    // CHECK: Main_Proc: process(A, B, C)
+    // CHECK: begin
+    // CHECK: end process Main_Proc;
+    Println(Gen_Proc(Main_Proc));
+end func Test

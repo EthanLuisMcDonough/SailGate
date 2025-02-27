@@ -1,0 +1,32 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+// TEST ID: bu-switch
+
+import SailGate::Builder::VHDL::*;
+
+func Test() is
+    var Logic_Type := Scalar_Type::Create(#logic);
+    var A := Port::In("A", Logic_Type);
+    var B := Port::In("B", Logic_Type);
+    var C := Port::Out("C", Logic_Type);
+
+    var S := Switch::Create(Concat::Create(Ref(A), Ref(B)), 
+        Cases => [
+            Case::Create(Literal::Vec("00", #logic),
+                [ Assignment::Create(Ref(C), Ref(A)) ]),
+            Case::Create([Literal::Vec("10", #logic), Literal::Vec("01", #logic)],
+                [ Assignment::Create(Ref(C), Ref(B)) ])
+        ],
+        Default => [Assignment::Create(Ref(C), Literal::Logic('1'))]);
+    Println(Gen_Stmt(S));
+
+    // CHECK: case A & B is
+    // CHECK:     case "00" =>
+    // CHECK:         C <= A;
+    // CHECK:     case "10" | "01" =>
+    // CHECK:         C <= B;
+    // CHECK:     others =>
+    // CHECK:         C <= '1';
+    // CHECK: end case;
+end func Test

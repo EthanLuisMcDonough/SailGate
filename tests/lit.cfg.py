@@ -10,6 +10,7 @@ script_dir = os.path.join(base_dir, "scripts")
 
 driver_script = os.path.join(base_dir, "sailgate.sh")
 type_script = os.path.join(script_dir, "test_types.sh")
+builder_script = os.path.join(script_dir, "test_vhdl_builder.sh")
 
 # TODO: allow FileCheck location to be specified.
 #       Right now, the tests assume FileCheck is in path
@@ -29,9 +30,13 @@ fake_dom = os.path.join(shared_dir, "fake_domain.psi")
 config.substitutions.append(("%sailgate_typecheck", type_script +
                              " " + fake_dom + suffix))
 
+
 # %sailgate_check: Runs FileCheck on generated temp file
 config.substitutions.append(("%sailgate_check", "FileCheck %s " +
                              "--input-file %t"))
+
+# %sailgate_builder: Runs ParaSail file with builder library
+config.substitutions.append(("%sailgate_builder", builder_script + suffix))
 
 # %sailgate: Runs driver with test file and checks output
 config.substitutions.append(("%sailgate", driver_script + suffix))

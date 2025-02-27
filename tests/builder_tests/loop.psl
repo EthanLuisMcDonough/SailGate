@@ -1,0 +1,13 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+// TEST ID: bu-loop
+
+import SailGate::Builder::VHDL::*;
+
+func Test() is
+    var L := Loop::Create(0..5, "I", []);
+    // CHECK: for I in 0 to 5 loop
+    // CHECK: end loop;
+    Println(Gen_Stmt(L));
+end func Test

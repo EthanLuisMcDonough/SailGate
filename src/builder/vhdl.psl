@@ -1,0 +1,1092 @@
+
+class SailGate::Builder::VHDL is
+    const Space : Univ_String := " ";
+    const Tab : Univ_String := Space * 4;
+    const Br : Univ_String := "\n";
+
+    // Helper function for wrapping a string in parenthesis
+    func Paren(U : Univ_String) -> Univ_String is
+        return "(" | U | ")";
+    end func Paren
+
+    /// Check if a unary operator is a logical operator (=, /=, >=, etc.)
+    func Returns_Bool(U : Unary_Op) -> Boolean is
+        return U == #logic_not;
+    end func Returns_Bool
+
+    /// Same as above, but for binary operators
+    func Returns_Bool(B : Binary_Op) -> Boolean is
+        return (case B of
+            [#eq | #neq | #lt | #gt | #lte | #gte] => #true;
+            [..] => #false);
+    end func Returns_Bool
+
+    /// Ranges for identifier checks
+    const Alphabetic_Range := 'A'..'Z' | 'a'..'z';
+    const Word_Range := Alphabetic_Range | '0'..'9' | '_';
+
+    func Get_Lower(C : Univ_Character) -> Univ_Character is
+        return (if C in 'A'..'Z' then (C - 'A') + 'a' else C);
+    end func Get_Lower
+
+    func Get_Upper(C : Univ_Character) -> Univ_Character is
+        return (if C in 'a'..'z' then (C - 'a') + 'A' else C);
+    end func Get_Upper
+
+    /// Normalizes identifier to Snake_Pascal_Case
+    /// VHDL is case insensitive
+    func Normalize_Case(S : Univ_String) -> Univ_String is
+        var Built_String : Univ_String := "";
+        var First_Letter : Boolean := #true;
+        for I in 1..|S| forward loop
+            var C := S[I];
+            if C == '_' then
+                First_Letter := #true;
+            else
+                C := (if First_Letter then Get_Upper(C) else Get_Lower(C));
+                First_Letter := #false;
+            end if
+            Built_String := Built_String | C;
+        end loop
+        return Built_String;
+    end func Normalize_Case
+
+    func Gen_Name(V : Vec_Type_Kind) -> Univ_String is
+        return (case V of
+            [#int] => "SIGNED";
+            [#uint] => "UNSIGNED";
+            [#logic] => "STD_LOGIC_VEC");
+    end func Gen_Name
+
+    /// Generates port definition
+    /// Used in components and entity definitions
+    func Gen_Portdef(ref Inputs : Vector<Port>; ref Outputs : Vector<Port>;
+                     Level : Indent_Size := 0) -> Univ_String is
+        const Indent_Str := Tab * Level;
+        const Port_Indent := Space * 5;
+        const Delim := ";" | Br | Indent_Str | Port_Indent;
+        var Ports := "";
+
+        for I in 1..|Inputs| forward loop
+            if I > 1 then
+                Ports |= Delim;
+            end if
+            Ports |= Gen_Var(Inputs[I]);
+        end loop
+
+        for I in 1..|Outputs| forward loop
+            Ports |= Delim | Gen_Var(Outputs[I]);
+        end loop
+
+        return Indent_Str | "port" | Paren(Ports) | ";";
+    end func Gen_Portdef
+exports
+    func Is_Valid_Ident(S : Univ_String) -> Boolean is
+        return |S| > 0 and then S[1] in Alphabetic_Range
+            and then (for all I in 2..|S| => S[I] in Word_Range);
+    end func Is_Valid_Ident
+
+    func Is_Valid_Bitstring(S : Univ_String) -> Boolean is
+        return |S| > 0 and then (for all I in 1..|S| => S[I] in '0'..'1');
+    end func Is_Valid_Bitstring
+
+    func Readable(A : Access_Kind) -> Boolean is
+        return A == #readable or else A == #readwrite;
+    end func Readable
+
+    func Writable(A : Access_Kind) -> Boolean is
+        return A == #writable or else A == #readwrite;
+    end func Writable
+
+    func Async(S : Stmt_Kind) -> Boolean is
+        return S == #async or else S == #both;
+    end func Async
+
+    func Sequential(S : Stmt_Kind) -> Boolean is
+        return S == #seq or else S == #both;
+    end func Sequential
+
+    func Readable(ref E : Expression+) -> Boolean is
+        return Readable(Access(E));
+    end func Readable
+
+    func Writable(ref E : Expression+) -> Boolean is
+        return Writable(Access(E));
+    end func Writable
+
+    func Async(ref S : Statement+) -> Boolean is
+        return Async(Region(S));
+    end func Async
+
+    func Sequential(ref S : Statement+) -> Boolean is
+        return Sequential(Region(S));
+    end func Sequential
+
+    func All_In(ref Inputs : Vector<Port>) -> Boolean is
+        return (for all I in 1..|Inputs| =>
+            Get_Dir(Inputs[I]) == #in);
+    end func All_In
+
+    func All_Out(ref Outputs : Vector<Port>) -> Boolean is
+        return (for all I in 1..|Outputs| =>
+            Get_Dir(Outputs[I]) == #out);
+    end func All_Out
+
+    class Vec_Range is
+    exports
+        op ".."(L, R : Index) -> Vec_Range is
+            return (First => L, Last => R);
+        end op ".."
+
+        func Create(Len : Length; Offset : Index; Dir : Vec_Dir) -> Vec_Range is
+            return (case Dir of
+                [#up] => (First => Offset, Last => Offset + [[Len]]);
+                [#down] => (First => Offset + [[Len]], Last => Offset));
+        end func Create
+
+        func Get_Max(V : Vec_Range) -> Index is
+            return Max(V.First, V.Last);
+        end func Get_Max
+
+        func Get_Min(V : Vec_Range) -> Index is
+            return Min(V.First, V.Last);
+        end func Get_Min
+
+        func Get_Dir(V : Vec_Range) -> Vec_Dir is
+            return (if V.First < V.Last then #up else #down);
+        end func Get_Dir
+
+        func Get_Size(V : Vec_Range) -> Length is
+            return [[Get_Max(V) - Get_Min(V) + 1]];
+        end func Get_Size
+
+        op "in"(Left : Index; Right : Vec_Range) -> Boolean is
+            return Left >= Get_Min(Right) and then Left <= Get_Max(Right);
+        end op "in"
+
+        op "in"(L, R : Vec_Range) -> Boolean is
+            return L.First in R and then L.Last in R;
+        end op "in"
+
+        func Get_Nth(V : Vec_Range; I : Index) -> Index is
+            return (case Get_Dir(V) of
+                [#up] => V.First + I;
+                [#down] => V.Last + I);
+        end func Get_Nth
+
+        func Gen_Range(V : Vec_Range) -> Univ_String is
+            return V.First | (if Get_Dir(V) == #down then
+                   " downto " else " to ") | V.Last;
+        end func Gen_Range
+    end class Vec_Range
+
+    class Ident_String is
+        const Value : Univ_String;
+    exports
+        op "from_univ"(S : Univ_String) -> Ident_String is
+            return (Value => Normalize_Case(S));
+        end op "from_univ"
+
+        op "to_univ"(I : Ident_String) -> Univ_String is
+            return I.Value;
+        end op "to_univ"
+
+        op "=?"(L, R : Ident_String) -> Ordering is
+            return L.Value =? R.Value;
+        end op "=?"
+
+        func Strict_Compare(L, R : Ident_String) -> Ordered::Full_Ordering is
+            return L.Value =? R.Value;
+        end func Strict_Compare
+    end class Ident_String
+
+    class Bit_String is
+        const Value : Univ_String;
+    exports
+        op "from_univ"(S : Univ_String) -> Bit_String is
+            return (Value => S);
+        end op "from_univ"
+
+        op "to_univ"(B : Bit_String) -> Univ_String is
+            return B.Value;
+        end op "to_univ"
+    end class Bit_String
+
+    class Scalar_Type is
+        const Kind : Scalar_Type_Kind;
+    exports
+        func Create(S : Scalar_Type_Kind) -> Scalar_Type is
+            return (Kind => S);
+        end func Create
+
+        op "=?"(L : Scalar_Type; R : Scalar_Type) -> Ordering is
+            return L.Kind =? R.Kind;
+        end op "=?"
+
+        func Gen_Type(S : Scalar_Type) -> Univ_String is
+            return (case S.Kind of
+                [#logic] => "STD_LOGIC";
+                [#boolean] => "BOOLEAN");
+        end func Gen_Type
+
+        // All bit and comparison operators are supported
+        func Supports(S : Scalar_Type; B : Binary_Op) -> Boolean is
+            return (case B of 
+                [#and | #or | #xor | #eq | #neq |
+                    #lt | #gt | #lte | #gte] => #true;
+                [..] => #false);
+        end func Supports
+
+        // LOGIC_VEC supports bitwise not. Boolean supports bit not and
+        // logic not
+        func Supports(S : Scalar_Type; U : Unary_Op) -> Boolean is
+            return U == #not or else (S.Kind == #boolean
+                and then U == #logic_not);
+        end func Supports
+
+        func Supports_Special(S : Scalar_Type; Sp : Special_Op) -> Boolean is
+            return Sp == #concat and then S.Kind == #logic;
+        end func Supports_Special
+
+        func Range(S : Scalar_Type) -> optional Vec_Range is
+            return null;
+        end func Range
+
+        func Type_Id(S : Scalar_Type) -> Univ_Enumeration is
+            return S.Kind;
+        end func Type_Id
+    end class Scalar_Type
+
+    class Vector_Type is
+        const Kind : Vec_Type_Kind;
+        const Rng : Vec_Range;
+    exports
+        func Create(K : Vec_Type_Kind; R : Vec_Range) -> Vector_Type is
+            return (Kind => K, Rng => R);
+        end func Create
+
+        op "=?"(L : Vector_Type; R : Vector_Type) -> Ordering is
+            if L.Kind == R.Kind and then Get_Size(L.Rng) == Get_Size(R.Rng) then
+                return #equal;
+            end if
+            return #unordered;
+        end op "=?"
+
+        func Gen_Type(V : Vector_Type) -> Univ_String is
+            return Gen_Name(V.Kind) | Paren(Gen_Range(V.Rng));
+        end func Gen_Type
+
+        func Supports(V : Vector_Type; B : Binary_Op) -> Boolean is
+            return (case B of
+                [#and | #or | #xor | #eq | #neq] => #true;
+                [..] => V.Kind == #int or else V.Kind == #uint);
+        end func Supports
+
+        func Supports(V : Vector_Type; U : Unary_Op) -> Boolean is
+            return (case U of
+                [#not] => #true;
+                [#negation] => V.Kind == #int;
+                [#logic_not] => #false);
+        end func Supports
+
+        func Supports_Special(V : Vector_Type; S : Special_Op) -> Boolean is
+            return #true;
+        end func Supports_Special
+
+        func Range(V : Vector_Type) -> optional Vec_Range is
+            return V.Rng;
+        end func Range
+
+        func Type_Id(V : Vector_Type) -> Univ_Enumeration is
+            return V.Kind;
+        end func Type_Id
+    end class Vector_Type
+
+    class Literal is
+        const Value : Univ_String;
+        var T : Type+;
+    exports
+        func Gen_Expr(ref L : Literal) -> Univ_String is
+            return L.Value;
+        end func Gen_Expr
+
+        func Access(ref L : Literal) -> Access_Kind is
+            return #readable;
+        end func Access
+
+        func Is_Static(ref L : Literal) -> Boolean is
+            return #true;
+        end func Is_Static
+
+        func Get_Type(ref L : Literal) -> Type+ is
+            return L.T;
+        end func Get_Type
+
+        func Bool(B : Boolean) -> Literal is
+            return (Value => (if B then "true" else "false"), T => Scalar_Type::Create(#boolean));
+        end func Bool
+
+        func Logic(L : Univ_Character) -> Literal is
+            return (Value => "'" | L | "'", T => Scalar_Type::Create(#logic));
+        end func Logic
+
+        func Vec(S : Bit_String; Kind : Vec_Type_Kind) -> Literal is
+            const Str : Univ_String := S;
+            var T : Type+ := Vector_Type::Create(Kind, (|Str| - 1)..0);
+            return (Value => "\"" | Str | "\"", T => T)
+        end func Vec
+    end class Literal
+
+    class Identifier is
+        const Name : Univ_String;
+        const Access : Access_Kind
+        var T : Type+;
+    exports
+        func Create(Name : Ident_String; T : Type+; Access : Access_Kind) -> Identifier is
+            return (Name => Name, T => T, Access => Access);
+        end func Create
+
+        func Gen_Expr(ref I : Identifier) -> Univ_String is
+            return I.Name;
+        end func Gen_Expr
+
+        func Get_Type(ref I : Identifier) -> Type+ is
+            return I.T;
+        end func Get_Type
+
+        func Access(ref I : Identifier) -> Access_Kind is
+            return I.Access;
+        end func Access
+
+        func Is_Static(ref I : Identifier) -> Boolean is
+            return #true;
+        end func Is_Static
+    end class Identifier
+
+    class Port is
+        const Ident : Univ_String;
+        const Dir : Port_Direction;
+        var T : Type+;
+    exports
+        func In(Name : Ident_String; T : Type+) -> Port is
+            return (Ident => Name, T => T, Dir => #in);
+        end func In
+
+        func Out(Name : Ident_String; T : Type+) -> Port is
+            return (Ident => Name, T => T, Dir => #out);
+        end func Out
+
+        func Get_Name(ref P : Port) -> Univ_String is
+            return P.Ident;
+        end func Get_Name
+
+        func Gen_Var(ref P : Port) -> Univ_String is
+            const Dir_Str := (if P.Dir == #in then "in" else "out");
+            return P.Ident | " : " | Dir_Str | Space | Gen_Type(P.T);
+        end func Gen_Var
+
+        func Get_Type(ref P : Port) -> Type+ is
+            return P.T;
+        end func Get_Type
+
+        func Ref(ref P : Port) -> Identifier is
+            return Identifier::Create(P.Ident, P.T, (if P.Dir == #in then
+                #readable else #writable));
+        end func Ref
+
+        func Get_Dir(ref P : Port) -> Port_Direction is
+            return P.Dir;
+        end func Get_Dir
+    end class Port
+
+    class Register is
+        const Ident : Univ_String;
+        const T : Type+;
+        const Init_Value : optional Literal;
+    exports
+        func Create(Name : Ident_String; T : Type+; Init_Val : optional Literal) -> Register is
+            return (Ident => Name, T => T,
+                Init_Value => Init_Val);
+        end func Create
+
+        func Gen_Var(ref R : Register) -> Univ_String is
+            var Signal_Text := "signal " | R.Ident | ": " | Gen_Type(R.T);
+            if R.Init_Value not null then
+                Signal_Text := Signal_Text | " := " | Gen_Expr(R.Init_Value);
+            end if
+            return Signal_Text;
+        end func Gen_Var
+
+        func Get_Type(ref R : Register) -> Type+ is
+            return R.T;
+        end func Get_Type
+
+        func Ref(ref R : Register) -> Identifier is
+            return Identifier::Create(R.Ident, R.T, #readwrite);
+        end func Ref
+
+        func Get_Name(ref R : Register) -> Univ_String is
+            return R.Ident;
+        end func Get_Name
+    end class Register
+
+    func Gen_Op(ref U : Unary_Op) -> Univ_String is
+        case U of
+            [#not | #logic_not] => return "not ";
+            [#negation] => return "-";
+        end case
+    end func Gen_Op
+
+    func Gen_Op(ref B : Binary_Op) -> Univ_String is
+        return (case B of
+            [#add] => "+";
+            [#sub] => "-";
+            [#mult] => "*";
+            [#div] => "/";
+            [#and] => "and";
+            [#or] => "or";
+            [#xor] => "xor";
+            [#mod] => "mod";
+            [#eq] => "=";
+            [#neq] => "/=";
+            [#lt] => "<";
+            [#lte] => "<=";
+            [#gt] => ">";
+            [#gte] => ">=");
+    end func Gen_Op
+
+    class Unary is
+        const Operation : Unary_Op;
+        var Operand : Expression+;
+    exports
+        func Create(Op : Unary_Op; Value : Expression+) -> Unary is
+            return (Operation => Op, Operand => Value);
+        end func Create
+
+        func Gen_Expr(ref U : Unary) -> Univ_String is
+            return Paren(Gen_Op(U.Operation) | Gen_Expr(U.Operand));
+        end func Gen_Expr
+
+        func Get_Type(ref U : Unary) -> Type+ is
+            if Returns_Bool(U.Operation) then
+                return Scalar_Type::Create(#boolean);
+            else
+                return Get_Type(U.Operand);
+            end if
+        end func Get_Type
+
+        func Access(ref U : Unary) -> Access_Kind is
+            return #readable;
+        end func Access
+
+        func Is_Static(ref U : Unary) -> Boolean is
+            return #false;
+        end func Is_Static
+    end class Unary
+
+    class Binary is
+        const Operation : Binary_Op;
+        var Right : Expression+;
+        var Left : Expression+;
+    exports
+        func Create(Op : Binary_Op; L : Expression+; R : Expression+) -> Binary is
+            return (Operation => Op, Right => R, Left => L);
+        end func Create
+
+        func Gen_Expr(ref B : Binary) -> Univ_String is
+            return Paren(Gen_Expr(B.Left) | Space | Gen_Op(B.Operation)
+                | Space | Gen_Expr(B.Right));
+        end func Gen_Expr
+
+        func Get_Type(ref B : Binary) -> Type+ is
+            if Returns_Bool(B.Operation) then
+                return Scalar_Type::Create(#boolean);
+            else
+                return Get_Type(B.Right);
+            end if
+        end func Get_Type
+
+        func Access(ref B : Binary) -> Access_Kind is
+            return #readable;
+        end func Access
+
+        func Is_Static(ref B : Binary) -> Boolean is
+            return #false;
+        end func Is_Static
+    end class Binary
+
+    class Index_Access is
+        var Value : Expression+;
+        const Index : Univ_Integer;
+    exports
+        func Create(E : Expression+; Index : Univ_Integer) -> Index_Access is
+            return (Value => E, Index => Index);
+        end func Create
+
+        func Gen_Expr(ref I : Index_Access) -> Univ_String is
+            return Gen_Expr(I.Value) | Paren(To_String(I.Index));
+        end func Gen_Expr
+
+        func Get_Type(ref I : Index_Access) -> Type+ is
+            return Scalar_Type::Create(#logic);
+        end func Get_Type
+
+        func Access(ref I : Index_Access) -> Access_Kind is
+            return Access(I.Value);
+        end func Access
+
+        func Is_Static(ref I : Index_Access) -> Boolean is
+            return Is_Static(I.Value);
+        end func Is_Static
+    end class Index_Access
+
+    class Slice_Access is
+        var Value : Expression+;
+        const Rng : Vec_Range;
+    exports
+        func Create(E : Expression+; Rng : Vec_Range) -> Slice_Access is
+            return (Value => E, Rng => Rng);
+        end func Create
+
+        func Gen_Expr(ref S : Slice_Access) -> Univ_String is
+            return Gen_Expr(S.Value) | Paren(Gen_Range(S.Rng));
+        end func Gen_Expr
+
+        func Get_Type(ref S : Slice_Access) -> Type+ is
+            var Base_Type := Get_Type(S.Value);
+            const Type_Enum := Type_Id(Base_Type);
+            {*"Type in slice access is not a vector"*
+                Type_Enum in Vec_Type_Kind}
+            return Vector_Type::Create(Type_Enum, S.Rng);
+        end func Get_Type
+
+        func Access(ref S : Slice_Access) -> Access_Kind is
+            return Access(S.Value);
+        end func Access
+
+        func Is_Static(ref S : Slice_Access) -> Boolean is
+            return Is_Static(S.Value);
+        end func Is_Static
+    end class Slice_Access
+
+    class Concat is
+        var Left : Expression+;
+        var Right : Expression+;
+    exports
+        func Create(L : Expression+; R : Expression+) -> Concat is
+            return (Left => L, Right => R);
+        end func Create
+
+        func Gen_Expr(ref C : Concat) -> Univ_String is
+            return Gen_Expr(C.Left) | " & " | Gen_Expr(C.Right);
+        end func Gen_Expr
+
+        func Get_Type(ref C : Concat) -> Type+ is
+            const Left_Range := Range(Get_Type(C.Left));
+            const Right_Range := Range(Get_Type(C.Right));
+            const Left_Size := (if Left_Range not null then
+                                Get_Size(Left_Range) else 1);
+            const Right_Size := (if Right_Range not null then
+                                 Get_Size(Right_Range) else 1);
+            const New_Size := [[Left_Size + Right_Size - 1]];
+            return Vector_Type::Create(Type_Id(Get_Type(C.Left)),
+                                       New_Size..0);
+        end func Get_Type
+
+        func Access(ref C : Concat) -> Access_Kind is
+            return #readable;
+        end func Access
+
+        func Is_Static(ref C : Concat) -> Boolean is
+            return #false;
+        end func Is_Static
+    end class Concat
+
+    class Edge_Check is
+        const Clock : Univ_String;
+        const Kind : Clock_Edge;
+    exports
+        func Create(ref Clock : Port; Kind : Clock_Edge) -> Edge_Check is
+            return (Clock => Get_Name(Clock), Kind => Kind);
+        end func Create
+
+        func Gen_Expr(ref E : Edge_Check) -> Univ_String is
+            const Function := (if E.Kind == #rising then
+                "rising_edge" else "falling_edge");
+            return Function | Paren(E.Clock);
+        end func Gen_Expr
+
+        func Get_Type(ref E : Edge_Check) -> Type+ is
+            return Scalar_Type::Create(#boolean);
+        end func Get_Type
+
+        func Access(ref E : Edge_Check) -> Access_Kind is
+            return #readable;
+        end func Access
+
+        func Is_Static(ref E : Edge_Check) -> Boolean is
+            return #false;
+        end func Is_Static
+    end class Edge_Check
+
+    class Component is
+        const Name : Univ_String;
+        const Inputs : Vector<Port>;
+        const Outputs : Vector<Port>;
+    exports
+        func Create(Name : Ident_String; Inputs : Vector<Port>;
+                    Outputs : Vector<Port>) -> Component is
+            return (Name => Name, Inputs => Inputs, Outputs => Outputs);
+        end func Create
+
+        func Gen_Comp(ref C : Component; Indent : Indent_Size) -> Univ_String is
+            const I := Tab * Indent;
+            return I | "component " | C.Name | " is" | Br |
+                Gen_Portdef(C.Inputs, C.Outputs, Indent + 1) | Br |
+                I | "end component;";
+        end func Gen_Comp
+
+        func Get_Inputs(ref C : Component) -> ref Vector<Port> is
+            return C.Inputs;
+        end func Get_Inputs
+
+        func Get_Outputs(ref C : Component) -> ref Vector<Port> is
+            return C.Outputs;
+        end func Get_Outputs
+
+        func Get_Name(ref C : Component) -> Univ_String is
+            return C.Name;
+        end func Get_Name
+    end class Component
+
+    func Gen_Block(ref B : Block; Indent : Indent_Size) -> Univ_String is
+        if |B| == 0 then
+            return (Tab * Indent) | "null;" | Br;
+        end if
+
+        var Block_Str : Univ_String := "";
+        for I in 1..|B| forward loop
+            Block_Str |= Gen_Stmt(B[I], Indent);
+            if I < |B| then
+                Block_Str |= Br;
+            end if
+        end loop
+        return Block_Str;
+    end func Gen_Block
+
+    class Assignment is
+        var Assignee : Expression+;
+        var Value : Expression+;
+    exports
+        func Create(A : Expression+; V : Expression+) -> Assignment is
+            return (Assignee => A, Value => V);
+        end func Create
+
+        func Gen_Stmt(ref A : Assignment; Indent : Indent_Size) -> Univ_String is
+            return Tab * Indent | Gen_Expr(A.Assignee) |
+                " <= " | Gen_Expr(A.Value) | ";";
+        end func Gen_Stmt
+
+        func Region(ref A : Assignment) -> Stmt_Kind is
+            return #both;
+        end func Region
+    end class Assignment
+
+    class Component_Instance is
+        const Inst_Name : Univ_String;
+        const Comp_Name : Univ_String;
+        var Mappings : Port_Map;
+    exports
+        func Create(N : Ident_String; ref C : Component;
+                    Mappings : Port_Map) -> Component_Instance is
+            var M := Mappings;
+            var To_Visit := Keys(M);
+
+            ref Inputs => Get_Inputs(C);
+
+            for I in 1..|Get_Inputs(C)| forward loop
+                ref Input => Get_Inputs(C)[I];
+                const Name := Get_Name(Input);
+                {*"Missing input field"* Name in M}
+                {*"Input must be non-null"* M[Name] not null}
+                {*"Input must be readable"* Readable(M[Name])}
+                {*"Mismatched type"* Get_Type(M[Name]) == Get_Type(Input)}
+                To_Visit -= Name;
+            end loop
+
+            for I in 1..|Get_Outputs(C)| forward loop
+                ref Output => Get_Outputs(C)[I];
+                const Name := Get_Name(Output);
+                if Name in M then
+                    {*"Mismatched type"* M[Name] is null or else
+                        Get_Type(M[Name]) == Get_Type(Output)}
+                    {*"Output must be writable"* M[Name] is null
+                        or else Writable(M[Name])}
+                else
+                    M |= [Name => null];
+                end if
+                To_Visit -= Name;
+            end loop
+
+            {*"Unknown field in port map"* Is_Empty(To_Visit)}
+
+            return (Inst_Name => N, Comp_Name => Get_Name(C), Mappings => M);
+        end func Create
+
+        func Gen_Stmt(ref C : Component_Instance; Indent : Indent_Size) -> Univ_String is
+            const I1 := Tab * Indent;
+            const I2 := I1 | Tab;
+            const I3 := I2 | Tab;
+
+            const Inst_Def := I1 | C.Inst_Name | ": " | C.Comp_Name | Br;
+            const Port_Map_Begin := I2 | "port map (" | Br;
+            const Port_Map_End := Br | I2 | ");" | Br;
+
+            var Ports := "";
+            var First : Boolean := #true;
+            for each [Field => Val] of C.Mappings forward loop
+                if not First then
+                    Ports |= "," | Br;
+                end if
+                Ports |= I3 | [[Field]] | " => " |
+                         (if Val not null then Gen_Expr(Val) else "open");
+                First := #false;
+            end loop
+
+            return Inst_Def | Port_Map_Begin | Ports | Port_Map_End;
+        end func Gen_Stmt
+
+        func Region(ref C : Component_Instance) -> Stmt_Kind is
+            return #async;
+        end func Region
+    end class Component_Instance
+
+    class Condition_Body is
+        var Condition : Expression+;
+        var Body : Block;
+    exports
+        func Create(C : Expression+; B : Block) -> Condition_Body is
+            return (Condition => C, Body => B);
+        end func Create
+
+        func Get_Cond(ref C : Condition_Body) -> ref Expression+ is
+            return C.Condition;
+        end func Get_Cond
+
+        func Get_Body(ref C : Condition_Body) -> ref Block is
+            return C.Body;
+        end func Get_Body
+    end class Condition_Body
+
+    class If_Chain is
+        const Main : Condition_Body;
+        const Elifs : Vector<Condition_Body>;
+        const Else : optional Block;
+    exports
+        func Create(Main : Condition_Body; Elifs : Vector<Condition_Body>;
+                    Else : optional Block) -> If_Chain is
+            return (Main => Main, Elifs => Elifs, Else => Else);
+        end func Create
+
+        func Gen_Stmt(ref I : If_Chain; Indent : Indent_Size) -> Univ_String is
+            const Line_Indent := Tab * Indent;
+
+            var If_Str := Line_Indent | "if " | Gen_Expr(Get_Cond(I.Main))
+                          | " then" | Br;
+            If_Str |= Gen_Block(Get_Body(I.Main), Indent + 1);
+
+            for Ind in 1..|I.Elifs| forward loop
+                If_Str |= Line_Indent | "elsif " | Gen_Expr(Get_Cond(I.Elifs[Ind])) |
+                          " then" | Br | Gen_Block(Get_Body(I.Elifs[Ind]), Indent + 1);
+            end loop
+
+            if I.Else not null then
+                If_Str |= Line_Indent | "else" | Br | Gen_Block(I.Else, Indent + 1) | Br;
+            end if
+
+            return If_Str | Line_Indent | "end if;";
+        end func Gen_Stmt
+
+        func Region(ref I : If_Chain) -> Stmt_Kind is
+            return #seq;
+        end func Region
+    end class If_Chain
+
+    class Case is
+        const L : Literals;
+        const B : Block;
+    exports
+        func Create(L : Literal; B : Block) -> Case is
+            return (L => [L], B => B);
+        end func Create
+
+        func Create(L : Literals {|L| > 0}; B : Block) -> Case is
+            return (L => L, B => B);
+        end func Create
+
+        func Gen_Case(ref C : Case; Indent : Indent_Size) -> Univ_String is
+            var Lits := "";
+            for I in 1..|C.L| forward loop
+                if I > 1 then
+                    Lits |= " | ";
+                end if
+                Lits |= Gen_Expr(C.L[I]);
+            end loop
+
+            return (Indent * Tab) | "case " | Lits | " =>" | Br |
+                   Gen_Block(C.B, Indent + 1);
+        end func Gen_Case
+
+        func Get_Values(ref C : Case) -> ref Literals is
+            return C.L;
+        end func Get_Values
+
+        func Get_Type(ref C : Case) -> Type+ is
+            return Get_Type(C.L[1]);
+        end func Get_Type
+    end class Case
+
+    class Switch is
+        var Val : Expression+;
+        const Cases : Vector<Case>;
+        const Default : Block;
+    exports
+        func Create(E : Expression+; Cases : Vector<Case>; Default : Block) -> Switch is
+            var Seen_Literals : Set<Univ_String> := [];
+            for I in 1..|Cases| forward loop
+                ref Lits => Get_Values(Cases[I]);
+                for J in 1..|Lits| forward loop
+                    const Str_Lit := Gen_Expr(Lits[J]);
+                    {*"Repeated literal in case"*
+                        Str_Lit not in Seen_Literals}
+                    Seen_Literals += Str_Lit;
+                end loop
+            end loop
+            return (Val => E, Cases => Cases, Default => Default);
+        end func Create
+
+        func Gen_Stmt(ref S : Switch; Indent : Indent_Size) -> Univ_String is
+            const T := Tab * Indent;
+            var Switch_Body := "";
+            for I in 1..|S.Cases| forward loop
+                Switch_Body |= Gen_Case(S.Cases[I], Indent + 1) | Br;
+            end loop
+
+            Switch_Body |= T | Tab | "others =>" | Br | Gen_Block(S.Default, Indent + 2);
+            
+            return T | "case " | Gen_Expr(S.Val) | " is" | Br | Switch_Body |
+                   Br | T | "end case;";
+        end func Gen_Stmt
+
+        func Region(ref S : Switch) -> Stmt_Kind is
+            return #seq;
+        end func Region
+    end class Switch
+
+    class Loop is
+        const Rng : Vec_Range;
+        const Var_Name : Univ_String;
+        const Body : Block;
+    exports
+        func Create(V : Vec_Range; Var_Name : Ident_String; Body : Block) -> Loop is
+            return (Rng => V, Var_Name => Var_Name, Body => Body);
+        end func Create
+
+        func Gen_Stmt(ref L : Loop; Indent : Indent_Size) -> Univ_String is
+            const I := Tab * Indent;
+            return I | "for " | L.Var_Name | " in " | Gen_Range(L.Rng) | 
+                   " loop" | Br | Gen_Block(L.Body, Indent + 1) | Br | I |
+                   "end loop;";
+        end func Gen_Stmt
+
+        func Region(ref L : Loop) -> Stmt_Kind is
+            return #seq;
+        end func Region
+    end class Loop
+
+    class Process is
+        const Name : Ident_String;
+        const SL : Vector<Identifier>;
+        const Body : Block;
+    exports
+        func Create(Name : Ident_String; SL : Vector<Identifier>;
+                    Body : Block) -> Process is
+            return (Name => Name, SL => SL, Body => Body);
+        end func Create
+            
+        func Gen_Proc(ref P : Process; Indent : Indent_Size) -> Univ_String is
+            const I := Tab * Indent;
+            var SL_Str : Univ_String := "";
+            for Ind in 1..|P.SL| forward loop
+                SL_Str |= Gen_Expr(P.SL[Ind]);
+                if Ind < |P.SL| then
+                    SL_Str |= ", ";
+                end if
+            end loop
+
+            const Name : Univ_String := P.Name;
+            return I | Name | ": process" | Paren(SL_Str) | Br | I | "begin" |
+                Br | Gen_Block(P.Body, Indent + 1) | Br | I | "end process "
+                | Name | ";";
+        end func Gen_Proc
+    end class Process
+
+    class Entity is
+        const Name : Univ_String;
+        const Inputs : Vector<Port>;
+        const Outputs : Vector<Port>;
+        const Registers : Vector<Register>;
+        const Components : Vector<Component>;
+        const Processes : Vector<Process>;
+        const Async_Region : Block;
+    exports
+        func Create(Name : Ident_String; Ports : Vector<Port>;
+                    Registers : Vector<Register>; Components : Vector<Component>;
+                    Async_Region : Block; Processes : Vector<Process>) -> Entity is
+            var Var_Names : Set<Univ_String> := [];
+            var Inputs : Vector<Port> := [];
+            var Outputs : Vector<Port> := [];
+
+            for I in 1..|Ports| forward loop
+                const N := Get_Name(Ports[I]);
+                {*"Duplicate port name"* N not in Var_Names}
+                if Get_Dir(Ports[I]) == #in then
+                    Inputs |= Ports[I];
+                else
+                    Outputs |= Ports[I];
+                end if
+                Var_Names |= N;
+            end loop
+
+            {*"No entity inputs found"* |Inputs| > 0}
+            {*"No entity outputs"* |Outputs| > 0}
+            {*"Register name shadows port"* for all I in 1..|Registers| =>
+                Get_Name(Registers[I]) not in Var_Names}
+
+            return (Name => Name, Inputs => Inputs, Outputs => Outputs,
+                Registers => Registers, Processes => Processes,
+                Async_Region => Async_Region, Components => Components);
+        end func Create
+
+        func Gen_Entity(ref E : Entity) -> Univ_String is
+            var Registers := "";
+            var Processes := "";
+            var Components := "";
+            const Delim := ";" | Br | Tab;
+
+            for I in 1..|E.Components| forward loop
+                Components |= Gen_Comp(E.Components[I], 1) | Br;
+            end loop
+
+            for I in 1..|E.Registers| forward loop
+                Registers |= Tab | Gen_Var(E.Registers[I]) | ";" | Br;
+            end loop
+
+            for I in 1..|E.Processes| forward loop
+                Processes |= Gen_Proc(E.Processes[I], 1) | Br;
+            end loop
+
+            const AR := (if |E.Async_Region| > 0 then
+                Gen_Block(E.Async_Region, 1) | Br else "");
+
+            const E_Text := "entity " | E.Name | " is" | Br |
+                            Gen_Portdef(E.Inputs, E.Outputs, 1) | Br | 
+                            "end entity;" | Br * 2;
+            const A_Text := "architecture " | E.Name | "_Behavior of " | E.Name | " is" | Br
+                            | Components | Br | Registers | "begin" | Br | AR |Processes |
+                            "end architecture;" | Br;
+
+            return E_Text | A_Text;
+        end func Gen_Entity
+
+        func Get_Component(ref E : Entity) -> Component is
+            return Component::Create(E.Name, E.Inputs, E.Outputs);
+        end func Get_Component
+
+        func Get_Name(ref E : Entity) -> Univ_String is
+            return E.Name;
+        end func Get_Name
+    end class Entity
+
+    class Design is
+        var Entities : Vector<Entity>;
+    exports
+        func Create(Entities : Vector<Entity>) -> Design is
+            return (Entities => Entities);
+        end func Create
+
+        func Gen_Design(ref D : Design) -> Ordered_Map<Univ_String, Univ_String> is
+            var Entities : Ordered_Map<Univ_String, Univ_String> := [];
+            for I in 1..|D.Entities| forward loop
+                ref Entity => D.Entities[I];
+                var File_Name := Get_Name(Entity) | ".vhd";
+                const Header := "library IEEE;" | Br |
+                                "use IEEE.STD_LOGIC_1164.ALL;" | Br |
+                                "use IEEE.NUMERIC_STD.ALL;" | Br | Br;
+                const File_Contents := Header | Gen_Entity(Entity);
+                Entities |= [File_Name => File_Contents];
+            end loop
+            return Entities;
+        end func Gen_Design
+    end class Design
+
+    func Test() is
+        var T :=  Vector_Type::Create(#logic, 3..0);
+        Println(Gen_Type(T));
+        var A := Port::In("A", Scalar_Type::Create(#logic));
+        var B := Port::In("B", Scalar_Type::Create(#logic));
+        var C := Port::Out("C", Scalar_Type::Create(#logic));
+
+        var Acc := Concat::Create(Ref(A), Ref(B));
+        Println(Gen_Type(Get_Type(Acc)));
+        Println(Gen_Expr(Acc));
+
+        var S := Switch::Create(Concat::Create(Ref(A), Ref(B)), 
+            Cases => [
+                Case::Create(Literal::Vec("00", #logic), [ Assignment::Create(Ref(C), Ref(A)) ]),
+                Case::Create([Literal::Vec("10", #logic), Literal::Vec("01", #logic)], [ Assignment::Create(Ref(C), Ref(B)) ])
+            ],
+            Default => [Assignment::Create(Ref(C), Literal::Logic('1'))]);
+        Println(Gen_Stmt(S, 1));
+
+        //var Wire_One := Register::Create("wire1", Logic_Type, null);
+        //var Wire_Two := Register::Create("wire2", Logic_Type, null);
+        //var Wire_Three := Register::Create("wire3", Logic_Type, null);
+
+        // var Main_Proc := Process::Create("main_proc",
+        //     SL => [Ref(A), Ref(B), Ref(C_In)],
+        //     Body => [
+        //         Assignment::Create(Ref(Wire_One), Binary::Create(#and, Ref(A), Ref(B))),
+        //         Assignment::Create(Ref(Wire_Two), Binary::Create(#xor, Ref(A), Ref(B))),
+        //         Assignment::Create(Ref(Wire_Three), Binary::Create(
+        //             #xor, Ref(Wire_Two), Ref(C_In))),
+        //         Assignment::Create(Ref(C_Out), Binary::Create(#or, Ref(Wire_One),
+        //             Ref(Wire_Two))),
+        //         Assignment::Create(Ref(Sum), Binary::Create(#xor, Ref(Wire_Two),
+        //             Ref(Wire_Three))) ]);
+
+        var Full_Adder := Entity::Create("Full_Adder",
+            Ports => [A, B, C],
+            Async_Region => [
+                Assignment::Create(Ref(C), Ref(A))
+            ]);
+
+        Println(Gen_Entity(Full_Adder));
+
+
+        var Test_A := Port::In("A", Scalar_Type::Create(#logic));
+        var Test_B := Port::Out("B", Scalar_Type::Create(#logic));
+
+        var Comp := Get_Component(Full_Adder);
+
+        var Inst := Component_Instance::Create("c0", Comp, [
+            ["A" => Literal::Logic('1')], ["B" => Ref(Test_A)],
+            ["C" => null]]);
+
+        var Gin := Entity::Create("Test",
+            Ports => [Test_A, Test_B],
+            Components => [Comp],
+            Async_Region => [ Inst ]);
+        Println(Gen_Entity(Gin));
+    end func Test
+end class SailGate::Builder::VHDL

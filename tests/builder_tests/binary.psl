@@ -1,0 +1,36 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+// TEST ID: bu-binary
+
+import SailGate::Builder::VHDL::*;
+
+func Test() is
+    var ST : Type+ := Logic_Type;
+    var VT : Type+ := Vector_Type::Create(#int, 3..0);
+
+    const A_Logic := Identifier::Create("A_Logic", ST, #readable);
+    const A_Vec := Identifier::Create("A_Vec", VT, #readable);
+
+    const B_Logic := Identifier::Create("B_Logic", ST, #readwrite);
+    const B_Vec := Identifier::Create("B_Vec", VT, #readwrite);
+
+    const C_Logic := Identifier::Create("C_Logic", ST, #writable);
+    const C_Vec := Identifier::Create("C_Vec", VT, #writable);
+
+    // CHECK: A_Logic and B_Logic
+    const And_E := Binary::Create(#and, A_Logic, B_Logic);
+    Println(Gen_Expr(And_E));
+
+    // CHECK: A_Vec or B_Vec
+    const Or_E := Binary::Create(#or, A_Vec, B_Vec);
+    Println(Gen_Expr(Or_E))
+
+    // CHECK: A_Vec + B_Vec
+    const Plus_E := Binary::Create(#add, A_Vec, B_Vec);
+    Println(Gen_Expr(Plus_E));
+
+    // CHECK: C_Vec <= (A_Vec + B_Vec);
+    const Assign := Assignment::Create(C_Vec, Plus_E);
+    Println(Gen_Stmt(Assign));
+end func Test

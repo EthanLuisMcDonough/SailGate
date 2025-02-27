@@ -1,0 +1,21 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+// TEST ID: bu-register
+
+import SailGate::Builder::VHDL::*;
+
+func Test() is
+    var A := Register::Create("A", Logic_Type);
+    var B := Register::Create("B", Logic_Type, Literal::Logic('1'));
+
+    var C_Type : Type+ := Vector_Type::Create(#logic, 3..0);
+    var C := Register::Create("C", C_Type, Literal::Vec("1001", #logic));
+
+    // CHECK: signal A: STD_LOGIC
+    Println(Gen_Var(A));
+    // CHECK: signal B: STD_LOGIC := '1'
+    Println(Gen_Var(B));
+    // CHECK: signal C: STD_LOGIC_VEC(3 downto 0) := "1001"
+    Println(Gen_Var(C));
+end func Test

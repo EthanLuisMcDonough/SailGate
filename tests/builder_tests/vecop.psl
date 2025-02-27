@@ -1,0 +1,28 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+// TEST ID: bu-vecop
+
+import SailGate::Builder::VHDL::*;
+
+func Test() is
+    var A := Port::In("A", Vector_Type::Create(#logic, 7..0));
+    var B := Port::Out("B", Vector_Type::Create(#logic, 5..0));
+
+    var Slice_Acc_1 := Slice_Access::Create(Ref(A), 2..5);
+    // CHECK: A(2 to 5)
+    Println(Gen_Expr(Slice_Acc_1));
+
+    var Slice_Acc_2 := Slice_Access::Create(Ref(A), 1..0);
+    // CHECK: A(1 downto 0)
+    Println(Gen_Expr(Slice_Acc_2));
+
+    var Index_Acc := Index_Access::Create(Ref(A), 5);
+    // CHECK: A(5)
+    Println(Gen_Expr(Index_Acc));
+
+    var Cnct := Concat::Create(Slice_Acc_2, Slice_Acc_1);
+    var Asmt := Assignment::Create(Ref(B), Cnct);
+    // CHECK: B <= A(1 downto 0) & A(2 to 5);
+    Println(Gen_Stmt(Asmt));
+end func Test

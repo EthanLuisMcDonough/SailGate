@@ -1,0 +1,22 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+// TEST ID: bu-port
+
+import SailGate::Builder::VHDL::*;
+
+func Test() is
+    var A := Port::In("A", Logic_Type);
+    var B := Port::In("B", Vector_Type::Create(#logic, 3..0));
+    var C := Port::Out("C", Vector_Type::Create(#int, 5..7));
+    var D := Port::Out("D", Vector_Type::Create(#uint, 10..5));
+
+    // CHECK: A : in STD_LOGIC
+    Println(Gen_Var(A));
+    // CHECK: B : in STD_LOGIC_VEC(3 downto 0)
+    Println(Gen_Var(B));
+    // CHECK: C : out SIGNED(5 to 7)
+    Println(Gen_Var(C));
+    // CHECK: D : out UNSIGNED(10 downto 5)
+    Println(Gen_Var(D));
+end func Test

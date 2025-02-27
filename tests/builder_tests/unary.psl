@@ -1,0 +1,21 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+// TEST ID: bu-unary
+
+import SailGate::Builder::VHDL::*;
+
+func Test() is
+    var Int_Type : Type+ := Vector_Type::Create(#int, 3..0);
+
+    var Logic_Val := Identifier::Create("LV", Logic_Type, #readable);
+    var Int_Val := Identifier::Create("IV", Int_Type, #readable);
+
+    var Not_E := Unary::Create(#not, Logic_Val);
+    // CHECK: not Lv
+    Println(Gen_Expr(Not_E));
+
+    var Neg_E := Unary::Create(#negation, Int_Val);
+    // CHECK: -Iv
+    Println(Gen_Expr(Neg_E));
+end func Test

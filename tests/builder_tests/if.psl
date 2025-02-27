@@ -1,0 +1,35 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+// TEST ID: bu-if
+
+import SailGate::Builder::VHDL::*;
+
+func Test() is
+    var A := Port::In("A", Logic_Type);
+    var B := Port::In("B", Logic_Type);
+    var C := Port::Out("C", Logic_Type);
+
+    var Rising := Edge_Check::Create(A);
+
+    var Clock_Check := If_Chain::Create(Condition_Body::Create(Rising, []));
+    // CHECK: if rising_edge(A) then
+    // CHECK: end if;
+    Println(Gen_Stmt(Clock_Check));
+
+    var Check_2 := If_Chain::Create(
+        Main => Condition_Body::Create(
+            Binary::Create(#and, 
+                Binary::Create(#eq, Ref(A), Literal::Logic('1')),
+                Binary::Create(#neq, Ref(A), Ref(B))), []),
+        Elifs => [
+            Condition_Body::Create(Binary::Create(#eq, Ref(A), Ref(B)), [])
+        ],
+        Else => [ Assignment::Create(Ref(C), Ref(A)) ]);
+    // CHECK: if ((A = '1') and (A /= B)) then
+    // CHECK: elsif (A = B) then
+    // CHECK: else
+    // CHECK: C <= A;
+    // CHECK: end if;
+    Println(Gen_Stmt(Check_2));
+end func Test

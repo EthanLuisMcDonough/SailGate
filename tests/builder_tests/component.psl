@@ -1,0 +1,44 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+// TEST ID: bu-component
+
+import *, SailGate::Builder::VHDL::*;
+
+func Gen_Black_Box() -> Entity is
+    var A := Port::In("A", Logic_Type);
+    var B := Port::In("B", Logic_Type);
+    var C := Port::Out("C", Logic_Type);
+    var D := Port::Out("D", Logic_Type);
+    return  Entity::Create("Black_Box", [A, B, C, D]);
+end func Gen_Black_Box
+
+func Test() is
+    var Black_Box := Gen_Black_Box();
+
+    var X := Port::In("X", Logic_Type);
+    var Y := Port::In("Y", Logic_Type);
+    var Z := Port::Out("Z", Logic_Type);
+
+    var Comp := Get_Component(Black_Box);
+
+    var Inst := Component_Instance::Create("b0", Comp, [
+        "A" => Ref(X), "B" => Ref(Y), "D" => Ref(Z) ]);
+
+    // CHECK: component Black_Box is
+    // CHECK:     port(A : in STD_LOGIC;
+    // CHECK:          B : in STD_LOGIC;
+    // CHECK:          C : out STD_LOGIC;
+    // CHECK:          D : out STD_LOGIC);
+    // CHECK: end component;
+    Println(Gen_Comp(Comp));
+
+    // CHECK: B0: Black_Box
+    // CHECK:     port map (
+    // CHECK:         A => X,
+    // CHECK:         B => Y,
+    // CHECK:         C => open,
+    // CHECK:         D => Z
+    // CHECK:     );
+    Println(Gen_Stmt(Inst));
+end func Test

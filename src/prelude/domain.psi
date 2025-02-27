@@ -1,14 +1,19 @@
-abstract interface SailGate::Prelude::Async<> is
-end interface SailGate::Prelude::Async
+interface SailGate::Prelude::Domain<> is
+    const Level : Integer<0..3>;
+    const Name : Univ_Enumeration;
 
-abstract interface SailGate::Prelude::Clock<>
-    extends Async<> is
-end interface SailGate::Prelude::Clock
+    const Async : Domain := (Level => 0, Name => #async);
 
-abstract interface SailGate::Prelude::Clock_Reset<>
-    extends Clock<> is
-end interface SailGate::Prelude::Clock_Reset
+    func Has_Clock(D : Domain) -> Boolean;
+    func Has_Reset(D : Domain) -> Boolean;
+    func Has_Enable(D : Domain) -> Boolean;
 
-abstract interface SailGate::Prelude::Clock_Reset_En<>
-    extends Clock_Reset<> is
-end interface SailGate::Prelude::Clock_Reset_En
+    func Clock(Name : Univ_Enumeration {Name != #async}) -> Domain;
+    func Clock_Reset(Name : Univ_Enumeration {Name != #async}) -> Domain;
+    func Clock_Reset_Enable(Name : Univ_Enumeration {Name != #async}) -> Domain;
+
+    func Rising(D : Domain) -> Boolean;
+    func Falling(D : Domain) -> Boolean;
+
+    op "=?"(L, R : Domain) -> Ordering;
+end interface SailGate::Prelude::Domain

@@ -6,7 +6,7 @@ end interface SailGate::Prelude::Vec_Index
 
 /// Base vector type
 abstract interface SailGate::Prelude::Vec_Rtl_Type
-        <S : Vec_Size; D is Async<>; T is Scalar_Type<>>
+        <S : Vec_Size; D : Domain; T is Scalar_Type<>>
         extends SailGate::Prelude::Rtl_Type<D> is
     op "not"(L : Vec_Rtl_Type) -> Vec_Rtl_Type;
     op "and"(L, R : Vec_Rtl_Type) -> Vec_Rtl_Type;
@@ -20,12 +20,12 @@ end interface SailGate::Prelude::Vec_Rtl_Type
 
 /// Base type for logic vectors
 abstract interface SailGate::Prelude::Base_Logic_Vec
-    <S : Vec_Size; D is Async<>> extends Vec_Rtl_Type<S, D, Logic<D>> is
+    <S : Vec_Size; D : Domain> extends Vec_Rtl_Type<S, D, Logic<D>> is
 end interface SailGate::Prelude::Base_Logic_Vec
 
 /// Realized logic vector type. Represents a bundle of wires of length S.
 /// Corresponds with logic_vec in VHDL.
-interface SailGate::Prelude::Vec<S : Vec_Size; D is Async<>>
+interface SailGate::Prelude::Vec<S : Vec_Size; D : Domain>
         extends Base_Logic_Vec<S, D> is
     op "not"(L : Vec) -> Vec;
     op "and"(L, R : Vec) -> Vec;
@@ -41,7 +41,7 @@ end interface SailGate::Prelude::Vec
 
 /// Base type for signed logic vectors
 abstract interface SailGate::Prelude::Base_Int_Vec
-        <S : Vec_Size; D is Async<>>
+        <S : Vec_Size; D : Domain>
         extends Base_Logic_Vec<S, D> is
     op ">>"(L, R : Base_Int_Vec) -> Base_Int_Vec;
     op "<<"(L, R : Base_Int_Vec) -> Base_Int_Vec;
@@ -55,7 +55,7 @@ end interface SailGate::Prelude::Base_Int_Vec
 
 /// Represents a logic vector that carries a signed integer value.
 /// Allows signed arithmetic operations to be applied to value.
-interface SailGate::Prelude::IVec<S : Vec_Size; D is Async<>>
+interface SailGate::Prelude::IVec<S : Vec_Size; D : Domain := Domain::Async>
         extends Base_Int_Vec<S, D> is
     op "not"(L : IVec) -> IVec;
     op "and"(L, R : IVec) -> IVec;
@@ -79,7 +79,7 @@ end interface SailGate::Prelude::IVec
 
 /// Represents a logic vector that carries an unsigned integer value.
 /// Allows unsigned arithmetic operations to be applied to value.
-interface SailGate::Prelude::UVec<S : Vec_Size; D is Async<>>
+interface SailGate::Prelude::UVec<S : Vec_Size; D : Domain := Domain::Async>
         extends Base_Int_Vec<S, D> is
     op "not"(L : UVec) -> UVec;
     op "and"(L, R : UVec) -> UVec;

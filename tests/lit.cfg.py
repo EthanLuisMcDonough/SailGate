@@ -27,8 +27,7 @@ fake_dom = os.path.join(shared_dir, "fake_domain.psi")
 # %sailgate_typecheck: Runs check for simple type-based tests.
 #                      These tests exist to check how RTL types
 #                      can be used
-config.substitutions.append(("%sailgate_typecheck", type_script +
-                             " " + fake_dom + suffix))
+config.substitutions.append(("%sailgate_typecheck", type_script + suffix))
 
 
 # %sailgate_check: Runs FileCheck on generated temp file

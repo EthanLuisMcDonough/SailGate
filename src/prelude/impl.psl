@@ -9,10 +9,6 @@ exports
         return with (Value => Univ);
     end op "from_univ"
 
-    op "to_univ"(L : Logic) -> Univ_Enumeration is
-        return L.Value
-    end op "to_univ"
-
     op "from_univ"(Univ : Univ_Integer) -> Logic is
         case Univ of
             [0] => return #false

@@ -1,5 +1,5 @@
 /// Base RTL type. Outlines basic operations all RTL type should have
-abstract interface SailGate::Prelude::Rtl_Type<D is Async<>> is
+abstract interface SailGate::Prelude::Rtl_Type<D : Domain> is
     op "not"(L : Rtl_Type) -> Rtl_Type;
     op "and"(Left, R : Rtl_Type) -> Rtl_Type;
     op "or"(Left, R : Rtl_Type) -> Rtl_Type;

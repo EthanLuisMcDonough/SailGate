@@ -6,8 +6,11 @@
 import SailGate::Prelude::*;
 
 func Test_Cross_Clk_Dom() is
-    var Value_1 : Logic<Fake_Dom> := 0;
-    var Value_2 : Logic<Fake_Dom_2> := 1;
-    // CHECK: operand's type {{.*}}<Fake_Dom> does not match param type {{.*}}<Fake_Dom_2>
+    const Dom1 := Clock(#a);
+    const Dom2 := Clock(#b);
+
+    var Value_1 : Logic<Dom1> := 0;
+    var Value_2 : Logic<Dom2> := 1;
+    // CHECK: operand's type {{.*}}<Dom1> does not match param type {{.*}}<Dom2>
     var Value_3 := Value_1 and Value_2;
 end func Test_Cross_Clk_Dom

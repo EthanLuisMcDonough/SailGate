@@ -4,7 +4,8 @@ import PSC::Reflection;
 
 interface SailGate::Sema::Sema_Error<> is
     type Sema_Error_Kind is Enum<[#no_entity, #invalid_field_type,
-        #mutable_field, #no_behavior, #invalid_inst]>;
+        #mutable_field, #invalid_inst, #ref_field_type,
+        #invalid_run_return]>;
     const Kind : Sema_Error_Kind;
     const Source : optional Reflection::Source_Position;
     func Dump(E : Sema_Error);

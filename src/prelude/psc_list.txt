@@ -1,7 +1,1 @@
 prelude.psi
-domain.psi
-type.psi
-util.psi
-scalar.psi
-vec.psi
-module.psi

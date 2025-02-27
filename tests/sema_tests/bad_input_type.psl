@@ -4,31 +4,17 @@
 // TEST ID: si-bad-input-type
 
 import SailGate::Prelude::*;
-import *;
 
-interface Out<D is Async<>> extends Output is
-    const C : Logic<D>;
-    func Register(O : Out);
-end interface Out
-
-interface Test<D is Async<>> extends Entity<Out<D>> is
-    const A : Logic<D>;
-    // CHECK: 18:11
+interface Test<> is
+    var C : Logic;
+    // CHECK: 12:36
     // CHECK: Invalid field type. Field must be a realized RTL type
-    const B : Univ_Integer;
-    func Run(T : Test) -> Out<D>;
+    func Run(A : Logic; B : Logic; C : Univ_Integer) -> Test;
 end interface Test
 
 class Test is
 exports
-    func Run(T : Test) -> Out<D> is
-        return (C => T.A and T.B);
+    func Run(A : Logic; B : Logic; C : Univ_Integer) -> Test is
+        return (C => A and B);
     end func Run
 end class Test
-
-class Out is
-exports
-    func Register(O : Out) is
-        {#false}
-    end func Register
-end class Out

@@ -8,6 +8,8 @@ interface SailGate::Sema::Extractor<> is
         const Name : Univ_String;
         const Spec : Decl;
         const Impl : Decl;
+        const Desc : Type_Descriptor;
+        const Arch : Routine;
     end interface Raw_Entity_Data
 
     var Entities : Vector<Raw_Entity_Data>;

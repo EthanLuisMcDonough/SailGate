@@ -2,4 +2,120 @@
 /// These are the types used by the end user to describe digital circuits
 interface SailGate::Prelude<> is
     type Vec_Size is Integer<1..2**31-1>;
+
+    /// Object representing a value's clock domain
+    interface Domain<> is
+        const Level : Integer<0..3>;
+        const Name : Univ_Enumeration;
+
+        func Has_Clock(D : Domain) -> Boolean;
+        func Has_Reset(D : Domain) -> Boolean;
+        func Has_Enable(D : Domain) -> Boolean;
+
+        func Clock(Name : Univ_Enumeration {Name != #async}) -> Domain;
+        func Clock_Reset(Name : Univ_Enumeration {Name != #async}) -> Domain;
+        func Clock_Reset_Enable(Name : Univ_Enumeration {Name != #async}) -> Domain;
+
+        func Rising(D : Domain) -> Boolean;
+        func Falling(D : Domain) -> Boolean;
+
+        op "=?"(L, R : Domain) -> Ordering;
+    end interface Domain
+
+    const Async := Domain::(Level => 0, Name => #async);
+
+    /// Utility functions used for checking conversion
+    interface Util<> is
+        func Is_Logic_Char(S : Univ_Character) -> Boolean;
+        func Is_Bit_Char(S : Univ_Character) -> Boolean;
+        func Is_Vec_Str(S : Univ_String; SZ : Vec_Size) -> Boolean;
+        func In_UBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean;
+        func In_SBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean;
+    end interface Util
+
+    type Logic_Val is Enum<[ #false, #true, #x, #z, #dont_care ]>;
+
+    /// Base logical unit. Represents a wire signal. This can be 0, 1, unknown,
+    /// high-impedance, or don't care. Each value corresponds to a YOSYS bit value
+    interface Logic<D : Domain := Async> is
+        const Value : Logic_Val;
+
+        op "from_univ"(Univ : Univ_Integer { Univ in 0..1 }) -> Logic;
+        op "from_univ"(S : Univ_Character {Util::Is_Logic_Char(S)}) -> Logic;
+        op "from_univ"(Univ : Univ_Enumeration)
+            {Univ in Logic_Val::Range()} -> Logic;
+
+        op "not"(L : Logic) -> Logic;
+        op "and"(Left, R : Logic) -> Logic;
+        op "or"(Left, R : Logic) -> Logic;
+        op "xor"(Left, R : Logic) -> Logic;
+        op "=?"(L, R : Logic) -> Ordering;
+    end interface Logic
+
+    // Checked vector index
+    interface Vec_Index<S : Vec_Size> is
+        const Val : Univ_Integer;
+        op "from_univ"(U : Univ_Integer {U < S}) -> Vec_Index;
+    end interface Vec_Index
+
+    /// Logic vector type. Represents a bundle of wires of length S.
+    /// Corresponds with logic_vec in VHDL.
+    interface Vec<S : Vec_Size; D : Domain> is
+        op "not"(L : Vec) -> Vec;
+        op "and"(L, R : Vec) -> Vec;
+        op "or"(L, R : Vec) -> Vec;
+        op "xor"(L, R : Vec) -> Vec;
+        op "=?"(L, R : Vec) -> Ordering;
+        op "indexing"(M : Vec; Key : Vec_Index<S>) -> Logic<D>;
+        op "var_indexing"(ref var M : Vec; Key : Vec_Index<S>) -> ref var Logic<D>;
+        op "[]"() -> Vec;
+        op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, S)}) -> Vec;
+        op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> Vec;
+    end interface Vec
+
+    /// Represents a logic vector that carries a signed integer value.
+    /// Allows signed arithmetic operations to be applied to value.
+    interface IVec<S : Vec_Size; D : Domain := Async> is
+        op "not"(L : IVec) -> IVec;
+        op "and"(L, R : IVec) -> IVec;
+        op "or"(L, R : IVec) -> IVec;
+        op "xor"(L, R : IVec) -> IVec;
+        op "=?"(L, R : IVec) -> Ordering;
+        op "indexing"(M : IVec; Key : Vec_Index<S>) -> Logic<D>;
+        op "var_indexing"(ref var M : IVec; Key : Vec_Index<S>) -> ref var Logic<D>;
+        op "[]"() -> IVec;
+        op ">>"(L, R : IVec) -> IVec;
+        op "<<"(L, R : IVec) -> IVec;
+        op "+"(L, R : IVec) -> IVec;
+        op "-"(L, R : IVec) -> IVec;
+        op "*"(L, R : IVec) -> IVec;
+        op "/"(L, R : IVec) -> IVec;
+        op "mod"(L, R : IVec) -> IVec;
+        op "from_univ"(Univ : Univ_Integer {Util::In_SBounds(Univ, S)}) -> IVec;
+        op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> IVec;
+        func Logic_Vec(V : IVec) -> Vec<S, D>;
+    end interface IVec
+
+    /// Represents a logic vector that carries an unsigned integer value.
+    /// Allows unsigned arithmetic operations to be applied to value.
+    interface UVec<S : Vec_Size; D : Domain := Async> is
+        op "not"(L : UVec) -> UVec;
+        op "and"(L, R : UVec) -> UVec;
+        op "or"(L, R : UVec) -> UVec;
+        op "xor"(L, R : UVec) -> UVec;
+        op "=?"(L, R : UVec) -> Ordering;
+        op "indexing"(M : UVec; Key : Vec_Index<S>) -> Logic<D>;
+        op "var_indexing"(ref var M : UVec; Key : Vec_Index<S>) -> ref var Logic<D>;
+        op "[]"() -> UVec;
+        op ">>"(L, R : UVec) -> UVec;
+        op "<<"(L, R : UVec) -> UVec;
+        op "+"(L, R : UVec) -> UVec;
+        op "-"(L, R : UVec) -> UVec;
+        op "*"(L, R : UVec) -> UVec;
+        op "/"(L, R : UVec) -> UVec;
+        op "mod"(L, R : UVec) -> UVec;
+        op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, S)}) -> UVec;
+        op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> UVec;
+        func Logic_Vec(V : UVec) -> Vec<S, D>;
+    end interface UVec
 end interface SailGate::Prelude

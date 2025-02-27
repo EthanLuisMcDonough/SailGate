@@ -3,83 +3,131 @@ import SailGate::Sema::*;
 import SailGate::Util::*;
 
 class SailGate::Sema::Extractor is
-    const Entity_Prefix := Prelude_Prefix | "Entity<";
-    const Output_Name := Prelude_Prefix | "Output";
-    var Pending : Map<Univ_String, Decl>;
+    interface Incomplete_Decl<> is
+        const Def : Decl;
+        const Arch : Routine;
+        const Desc : Type_Descriptor;
+    end interface Incomplete_Decl
 
-    func Type_Is_Output(Type : Type_Descriptor) -> Boolean is
+    var Pending : Ordered_Map<Univ_String, Incomplete_Decl>;
+    var Visited : Set<Univ_String>;
+
+    /// Checks if a declaration is or is in a module with the given name
+    func In_Module(D : Decl; Mod_Name : Univ_String) -> Boolean is
+        const Full_Name := Util::Get_Decl_Name(D);
+        return Full_Name == Mod_Name or else
+            Starts_With(Full_Name, Mod_Name | "::");
+    end func In_Module
+
+    // Checks if declaration is from a standard library or
+    // SailGate itself. If it is, we don't instrument it
+    func Is_Std_Decl(D : Decl) -> Boolean is
+        return In_Module(D, "PSC") or else
+            In_Module(D, "PSL") or else
+            In_Module(D, "SailGate");
+    end func Is_Std_Decl
+
+    /// If the type is an entity, return it's architecture. Otherwise,
+    /// return null
+    func Get_Entity_Arch(Type : Type_Descriptor) -> optional Routine is
         if Type is null then
-            return #false;
+            return null;
         end if
-        const Base := Util::Base_Type(Type);
-        const Base_Name := Name(Base);
-        return not Is_Abstract(Type) and then
-            Base_Name == Output_Name;
-    end func Type_Is_Output
 
-    func Type_Is_Entity(Type : Type_Descriptor) -> Boolean is
-        if Type is null then
-            return #false;
-        end if
-        const Base := Util::Base_Type(Type);
-        const Base_Name := Name(Base);
-        return not Is_Abstract(Type) and then
-            Starts_With(Base_Name, Entity_Prefix);
-    end func Type_Is_Entity
+        var Ops := Operations(Type);
+        for I in 1..|Ops| forward loop
+            const Ind := Ops[I].Index;
+            var R := Routine::Routine_At_Index(Ind);
+            if Name(R) == "Run" then
+                return R;
+            end if
+        end loop
 
-    func Decl_Is_Entity(D : Decl) -> Boolean is
-        if Kind(D) != #module then
-            return #false
+        return null;
+    end func Get_Entity_Arch
+
+    func Get_Entity(D : Decl) -> optional Incomplete_Decl is
+        if D is null or else Kind(D) != #module then
+            return null;
         end if
+
         const Type_Decl := Util::First_In_Region(Decl_Region(D), #type);
-        const Desc := Descriptor_For_Type(Type_Decl);
-        return Type_Is_Entity(Desc);
-    end func Decl_Is_Entity
-
-    func Decl_Is_Output(D : Decl) -> Boolean is
-        if Kind(D) != #module then
-            return #false
+        if Type_Decl is null then
+            return null;
         end if
-        const Type_Decl := Util::First_In_Region(Decl_Region(D), #type);
-        const Desc := Descriptor_For_Type(Type_Decl);
-        return Type_Is_Output(Desc);
-    end func Decl_Is_Output
 
-    func Visit_Entity(var E : Extractor; D : Decl) is
+        const Desc := Descriptor_For_Type(Type_Decl);
+        if Desc is null then
+            return null;
+        end if
+
+        const Arch := Get_Entity_Arch(Desc);
+        if Arch is null then
+            return null;
+        end if
+
+        return (Def => D, Arch => Arch, Desc => Desc);
+    end func Get_Entity
+
+    func Visit_Decl(var E : Extractor; D : Decl) is
+        if Kind(D) != #module then
+            return;
+        end if
+
+        const Entity := Get_Entity(D);
+        if Entity not null then
+            if Is_Spec(D) then
+                Visit_Spec(E, Entity);
+            else
+                Visit_Impl(E, D);
+            end if
+            return;
+        end if
+
         if Is_Spec(D) then
-            Visit_Spec(E, D);
-        else
-            Visit_Impl(E, D);
+            // Check for entities nested inside modules
+            // Don't look inside classes, those interfaces are private
+            Visit_Region(E, Decl_Region(D));
+            Visit_Region(E, Body_Region(D));
         end if
-    end func Visit_Entity
+    end func Visit_Decl
 
-    func Visit_Spec(var E : Extractor; D : Decl) is
-        const Name := Util::Get_Decl_Name(D);
+    func Visit_Region(var E : Extractor; R : Region) is
+        if R is null then
+            return;
+        end if
+
+        // Skip first, we already visited that one in Visit_Decl
+        for J in 2..Num_Items(R) forward loop
+            Visit_Decl(E, Nth_Item(R, J));
+        end loop
+    end func Visit_Region
+
+    func Visit_Spec(var E : Extractor; D : Incomplete_Decl) is
+        const Name := Util::Get_Decl_Name(D.Def);
         E.Pending |= (Key => Name, Value => D);
     end func Visit_Spec
 
     func Visit_Impl(var E : Extractor; D : Decl) is
         const Name := Util::Get_Decl_Name(D);
         {> Name in E.Pending <}
+        const Prev <== E.Pending[Name];
         E.Entities |= (Name => Name,
-            Spec => E.Pending[Name],
-            Impl => D);
+            Spec => Prev.Def, Impl => D,
+            Desc => Prev.Desc, Arch => Prev.Arch);
         E.Pending -= Name;
     end func Visit_Impl
 exports
     func Create() -> Extractor is
         return (Entities => [], Pending => [],
-            Outputs => []);
+            Outputs => [], Visited => []);
     end func Create
 
     func Load(var Ex : Extractor; var Env : Environment) is
         for I in 1..Env.Num_Library_Items() forward loop
             const Item := Env.Nth_Library_Item(I);
-            const Name := Util::Get_Decl_Name(Item);
-            if Decl_Is_Entity(Item) then
-                Visit_Entity(Ex, Item);
-            elsif Decl_Is_Output(Item) then
-                Ex.Outputs |= (Key => Name, Value => Item);
+            if not Is_Std_Decl(Item) then
+                Visit_Decl(Ex, Item);
             end if
         end loop
     end func Load

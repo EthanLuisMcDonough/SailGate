@@ -1,8 +1,0 @@
-/// Utility functions used for checking conversion
-interface SailGate::Prelude::Util<> is
-    func Is_Logic_Char(S : Univ_Character) -> Boolean;
-    func Is_Bit_Char(S : Univ_Character) -> Boolean;
-    func Is_Vec_Str(S : Univ_String; SZ : Vec_Size) -> Boolean;
-    func In_UBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean;
-    func In_SBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean;
-end interface SailGate::Prelude::Util

@@ -14,8 +14,9 @@ exports
             [#no_entity] => Println("No entities found");
             [#invalid_field_type] => Println("Invalid field type. Field must be a realized RTL type");
             [#mutable_field] => Println("Invalid field mutability. Field must be constant");
-            [#no_behavior] => Println("No \"Run\" method found");
+            [#ref_field_type] => Println("Invalid field type. Field cannot be ref");
             [#invalid_inst] => Println("Invalid instruction");
+            [#invalid_run_return] => Println("Invalid \"Run\" method. Run must return the entity type")
         end case
     end func Dump
 end class SailGate::Sema::Sema_Error
@@ -26,10 +27,6 @@ class SailGate::Sema::Validator is
         const LVec := Prelude_Prefix | "Vec<";
         const SVec := Prelude_Prefix | "IVec<";
         const UVec := Prelude_Prefix | "UVec<";
-        const Async := Prelude_Prefix | "Async";
-        const Clock := Prelude_Prefix | "Clock";
-        const Clock_Reset := Prelude_Prefix | "Clock_Reset";
-        const Clock_Reset_En := Prelude_Prefix | "Clock_Reset_En";
     end interface Type_Name
 
     /// Creates IR type from RTL type descriptor. Returns null for
@@ -103,65 +100,123 @@ class SailGate::Sema::Validator is
     end func Routine_Is_Run
 
     /// Traverses Decl AST and inserts valid entity rep into the entity map
-    func Check(var V : Validator; D : Reflection::Decl; Ex : Extractor) -> optional Sema_Error is
+    func Check(var V : Validator; D : Extractor::Raw_Entity_Data) -> optional Sema_Error is
         var Type_Params : Vector<Reflection::Decl>;
         var Fields : Vector<Reflection::Decl>;
 
-        const DR := Decl_Region(D);
-        {> DR not null <}
+        Println("Visiting " | D.Name);
 
-        // Get Entity type
-        const Entity_Type_Decl := DR.Nth_Item(1);
-        {> Kind(Entity_Type_Decl) == #type <}
-        const Entity_Type := Descriptor_For_Type(Entity_Type_Decl);
-
-        // Check field types types
+        // Gather inputs
+        const Run_Params := Parameters(D.Arch);
         var Inputs : IR::Entity::Port_Def := [];
-        const Input_Err := Check(Inputs, Entity_Type);
-        if Input_Err not null then
-            return Input_Err;
-        end if
-
-        // Find "Run" implementation
-        var Behavior : Reflection::Routine := null;
-        for I in 2..Num_Items(DR) forward loop
-            const Next_Item := DR.Nth_Item(I);
-            if Kind(Next_Item) == #operation then
-                const R := Routine_For_Operation(Next_Item);
-                if not Routine_Is_Run(R) then
-                    continue loop;
-                end if
-                Behavior := R;
-            end if
-        end loop
-
-        if Behavior is null then
-            return (Kind => #no_behavior, Source => Decl_Source_Pos(D));
-        end if
-
-        const Run_Params := Parameters(Behavior);
-        var Output_Type : Reflection::Type_Descriptor := null;
         for I in 1..|Run_Params| forward loop
-            if Run_Params[I].Is_Operation_Output then
-                const Base_Name := Util::Base_Name(Run_Params[I].Type_Name);
-                const Base_Decl := Ex.Outputs[Base_Name];
-                const Type_Decl := Util::First_In_Region(Decl_Region(Base_Decl), #type);
-                Output_Type := Descriptor_For_Type(Type_Decl);
+            const P := Run_Params[I];
+            const P_Decl := P.Param_Decl;
+            const P_Source := Decl_Source_Pos(P_Decl);
+
+            if P.Is_Operation_Output then
+                if not P.Is_Of_Current_Inst_Type then
+                    return (Kind => #invalid_run_return,
+                        Source => P_Source);
+                end if
+            else
+                if P.Is_Var then
+                    return (Kind => #mutable_field,
+                        Source => P_Source);
+                end if
+
+                if P.Is_Passed_By_Ref then
+                    return (Kind => #ref_field_type,
+                        Source => P_Source);
+                end if
+
+                const Type_Desc := Type_Desc_At_Locator(P.Type_Info);
+                const Rtl_Type := Type_To_Rtl(Type_Desc);
+                if P.Is_Optional or else Rtl_Type is null then
+                    return (Kind => #invalid_field_type,
+                        Source => P_Source);
+                end if
+
+                Inputs |= (Key => Id(P_Decl), Value => Rtl_Type);
             end if
         end loop
 
-        {>*"No output found"* Output_Type not null<}
-        // Check output
+        // Gather outputs
+        const Comp := Components(D.Desc);
         var Outputs : IR::Entity::Port_Def := [];
-        const Output_Err := Check(Outputs, Output_Type);
-        if Output_Err not null then
-            return Output_Err;
-        end if
+        for I in 1..|Comp| forward loop
+            const Rtl_Type := Type_To_Rtl(Comp[I].Type_Desc);
+            const Comp_Decl := Comp[I].Component_Decl;
+            const Comp_Source := Decl_Source_Pos(Comp_Decl);
+
+            if Comp[I].Is_By_Ref then
+                return (Kind => #ref_field_type,
+                    Source => Comp_Source);
+            end if
+
+            if Rtl_Type is null then
+                return (Kind => #invalid_field_type,
+                    Source => Comp_Source);
+            end if
+
+            Outputs |= (Key => Id(Comp_Decl), Value => Rtl_Type);
+        end loop
+
+        // const DR := Decl_Region(D);
+        // {> DR not null <}
+
+        // // Get Entity type
+        // const Entity_Type_Decl := DR.Nth_Item(1);
+        // {> Kind(Entity_Type_Decl) == #type <}
+        // const Entity_Type := Descriptor_For_Type(Entity_Type_Decl);
+
+        // // Check field types types
+        // var Inputs : IR::Entity::Port_Def := [];
+        // const Input_Err := Check(Inputs, Entity_Type);
+        // if Input_Err not null then
+        //     return Input_Err;
+        // end if
+
+        // // Find "Run" implementation
+        // var Behavior : Reflection::Routine := null;
+        // for I in 2..Num_Items(DR) forward loop
+        //     const Next_Item := DR.Nth_Item(I);
+        //     if Kind(Next_Item) == #operation then
+        //         const R := Routine_For_Operation(Next_Item);
+        //         if not Routine_Is_Run(R) then
+        //             continue loop;
+        //         end if
+        //         Behavior := R;
+        //     end if
+        // end loop
+
+        // if Behavior is null then
+        //     return (Kind => #no_behavior, Source => Decl_Source_Pos(D));
+        // end if
+
+        // const Run_Params := Parameters(Behavior);
+        // var Output_Type : Reflection::Type_Descriptor := null;
+        // for I in 1..|Run_Params| forward loop
+        //     if Run_Params[I].Is_Operation_Output then
+        //         const Base_Name := Util::Base_Name(Run_Params[I].Type_Name);
+        //         const Base_Decl := Ex.Outputs[Base_Name];
+        //         const Type_Decl := Util::First_In_Region(Decl_Region(Base_Decl), #type);
+        //         Output_Type := Descriptor_For_Type(Type_Decl);
+        //     end if
+        // end loop
+
+        // {>*"No output found"* Output_Type not null<}
+        // // Check output
+        // var Outputs : IR::Entity::Port_Def := [];
+        // const Output_Err := Check(Outputs, Output_Type);
+        // if Output_Err not null then
+        //     return Output_Err;
+        // end if
 
         const Entity : IR::Entity := (
             Inputs => Inputs, Outputs => Outputs,
-            Domains => [], Behavior => Behavior);
-        V.Entities |= (Key => Name(Entity_Type), Value => Entity);
+            Domains => [], Behavior => D.Arch);
+        V.Entities |= (Key => Name(D.Desc), Value => Entity);
     end func Check
 exports
     func Create() -> Validator is
@@ -173,7 +228,7 @@ exports
             return (Kind => #no_entity, Source => null);
         end if
         for I in 1..|Ex.Entities| forward loop
-            const Res := Check(V, Ex.Entities[I].Spec, Ex);
+            const Res := Check(V, Ex.Entities[I]);
             if Res not null then
                 return Res;
             end if

@@ -375,6 +375,4 @@ interface SailGate::Builder::VHDL<> is
         func Create(Entities : Vector<Entity>) -> Design;
         func Gen_Design(ref D : Design) -> Ordered_Map<Univ_String, Univ_String>;
     end interface Design
-
-    func Test();
 end interface SailGate::Builder::VHDL

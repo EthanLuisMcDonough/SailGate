@@ -6,6 +6,11 @@
 class SailGate::Prelude is
 exports
     class Domain is
+        type Domain_Level is Integer<0..3>;
+
+        const Level : Domain_Level;
+        const Name : Univ_Enumeration;
+
         const ASYNC_ID := 0;
         const CLOCK_ID := 1;
         const CLOCK_RESET_ID := 2;
@@ -22,6 +27,10 @@ exports
         func Has_Enable(D : Domain) -> Boolean is
             return D.Level >= CLOCK_RESET_ID;
         end func Has_Enable
+
+        func Get_Async() -> Domain is
+            return (Name => #async, Level => ASYNC_ID);
+        end func Get_Async
 
         func Clock(Name : Univ_Enumeration) -> Domain is
             return (Name => Name, Level => CLOCK_ID);

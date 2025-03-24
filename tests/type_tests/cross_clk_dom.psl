@@ -1,4 +1,4 @@
-// RUN: not %sailgate_typecheck
+// RUN: %sailgate_typecheck
 // RUN: %sailgate_check
 
 // TEST ID: ti-diff-clock-doms
@@ -6,8 +6,8 @@
 import SailGate::Prelude::*;
 
 func Test_Cross_Clk_Dom() is
-    const Dom1 := Clock(#a);
-    const Dom2 := Clock(#b);
+    const Dom1 := Domain::Clock(#a);
+    const Dom2 := Domain::Clock(#b);
 
     var Value_1 : Logic<Dom1> := 0;
     var Value_2 : Logic<Dom2> := 1;

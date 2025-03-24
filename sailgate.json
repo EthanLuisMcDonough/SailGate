@@ -1,0 +1,21 @@
+{
+    "prefix": "./src",
+    "headers": [
+        "sailgate.psi",
+        "util.psi",
+        "prelude.psi",
+        "ir/ir.psi",
+        "ir/type.psi",
+        "ir/entity.psi",
+        "builder/builder.psi",
+        "builder/vhdl.psi",
+        "sema/sema.psi",
+        "sema/util.psi",
+        "sema/debug.psi",
+        "sema/validator.psi",
+        "sema/extractor.psi",
+        "driver.psi"
+    ],
+    "sources": ["**/*.psl"],
+    "command": "Main"
+}

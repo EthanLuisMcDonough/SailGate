@@ -1,3 +1,0 @@
-ir.psi
-type.psi
-entity.psi

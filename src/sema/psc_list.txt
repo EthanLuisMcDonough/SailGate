@@ -1,5 +1,0 @@
-sema.psi
-util.psi
-debug.psi
-validator.psi
-extractor.psi

@@ -4,8 +4,4 @@
 # assumes interp.csh is in path
 
 ROOT=$(cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd);
-GATHERER="$ROOT/scripts/psc_list_gather.sh"
-
-SOURCE_FILES=( $(sh "$GATHERER" "$ROOT/src") )
-
-yes exit | interp.csh "${SOURCE_FILES[@]}" "$@" -command Main
+python3 $ROOT/psrun.py $ROOT/sailgate.json

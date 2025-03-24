@@ -46,6 +46,9 @@ class SailGate::Sema::Extractor is
         return null;
     end func Get_Entity_Arch
 
+    /// Extracts relevant entity information and returns it as an
+    /// incomplete value. This value is stored and then later used to
+    /// create the complete entity object
     func Get_Entity(D : Decl) -> optional Incomplete_Decl is
         if D is null or else Kind(D) != #module then
             return null;
@@ -69,6 +72,9 @@ class SailGate::Sema::Extractor is
         return (Def => D, Arch => Arch, Desc => Desc);
     end func Get_Entity
 
+    /// Visit a decl. If its an interface, then add it to the pending
+    /// module map. If its a class, pop the pending module from the app
+    /// and use that data to create the complete entity
     func Visit_Decl(var E : Extractor; D : Decl) is
         if Kind(D) != #module then
             return;

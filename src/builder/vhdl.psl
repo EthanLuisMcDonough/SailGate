@@ -555,8 +555,8 @@ exports
         func Get_Type(ref S : Slice_Access) -> Type+ is
             var Base_Type := Get_Type(S.Value);
             const Type_Enum := Type_Id(Base_Type);
-            {*"Type in slice access is not a vector"*
-                Type_Enum in Vec_Type_Kind}
+            const Type_Ok := Type_Enum in Vec_Type_Kind;
+            {*"Type in slice access is not a vector"* Type_Ok}
             return Vector_Type::Create(Type_Enum, S.Rng);
         end func Get_Type
 
@@ -707,10 +707,13 @@ exports
             for I in 1..|Get_Inputs(C)| forward loop
                 ref Input => Get_Inputs(C)[I];
                 const Name := Get_Name(Input);
-                {*"Missing input field"* Name in M}
-                {*"Input must be non-null"* M[Name] not null}
+                const Input_Field_Ok := Name in M;
+                const Input_Not_Null := M[Name] not null;
+                const Types_Match := Get_Type(M[Name]) == Get_Type(Input);
+                {*"Missing input field"* Input_Field_Ok}
+                {*"Input must be non-null"* Input_Not_Null}
                 {*"Input must be readable"* Readable(M[Name])}
-                {*"Mismatched type"* Get_Type(M[Name]) == Get_Type(Input)}
+                {*"Mismatched type"* Types_Match}
                 To_Visit -= Name;
             end loop
 
@@ -718,8 +721,9 @@ exports
                 ref Output => Get_Outputs(C)[I];
                 const Name := Get_Name(Output);
                 if Name in M then
-                    {*"Mismatched type"* M[Name] is null or else
-                        Get_Type(M[Name]) == Get_Type(Output)}
+                    const Types_Match := M[Name] is null or else
+                        Get_Type(M[Name]) == Get_Type(Output);
+                    {*"Mismatched type"* Types_Match}
                     {*"Output must be writable"* M[Name] is null
                         or else Writable(M[Name])}
                 else

@@ -1,0 +1,3 @@
+func Test() is
+    null;
+end func Test

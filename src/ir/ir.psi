@@ -1,4 +1,0 @@
-interface SailGate::IR<> is
-    type Scalar_Type is Enum<[#logic]>;
-    type Domain is Enum<[#async, #clock, #clock_reset, #clock_reset_en]>;
-end interface SailGate::IR

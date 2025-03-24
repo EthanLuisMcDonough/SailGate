@@ -1,0 +1,37 @@
+import PSC::Reflection;
+
+interface SailGate::IR<> is
+    type Scalar_Type is Enum<[#logic]>;
+    type Domain is Enum<[#async, #clock, #clock_reset, #clock_reset_en]>;
+
+    interface Vec_Type<> is
+        type Type_Kind is Enum<[#logic, #int, #uint]>;
+        const Kind : Type_Kind;
+        const Size : Univ_Integer;
+
+        op "=?"(L, R : Vec_Type) -> Ordering;
+    end interface Vec_Type
+
+    interface Type<> is
+        type Type_Kind is Enum<[#scalar, #vec]>;
+        const Kind : Type_Kind;
+
+        func Create(S : Scalar_Type) -> Type;
+        func Create(K : Vec_Type::Type_Kind;
+            S : Univ_Integer {S > 0}) -> Type;
+
+        func Get_Scalar(T : Type {T.Kind == #scalar}) -> Scalar_Type;
+        func Get_Vec(T : Type {T.Kind == #vec}) -> Vec_Type;
+        func To_String(T : Type) -> Univ_String;
+        op "=?"(L, R : Type) -> Ordering;
+    end interface Type
+
+    interface Entity<> is
+        type Port_Def is Map<Univ_String, Type>;
+
+        const Inputs : Port_Def;
+        const Outputs : Port_Def;
+        const Domains : Map<Univ_String, Domain>;
+        const Behavior : Reflection::Routine;
+    end interface Entity
+end interface SailGate::IR

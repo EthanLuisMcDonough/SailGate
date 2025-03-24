@@ -1,0 +1,53 @@
+class SailGate::IR is
+exports
+    class Vec_Type is
+    exports
+        op "=?"(L, R : Vec_Type) -> Ordering is
+            if L.Kind == R.Kind and then L.Size == R.Size then
+                return #equal;
+            end if
+            return #unordered;
+        end op "=?"
+    end class Vec_Type
+
+    class Type is
+        const Scalar : optional Scalar_Type;
+        const Vec : optional Vec_Type;
+    exports
+        func Create(S : Scalar_Type) -> Type is
+            return (Kind => #scalar, Scalar => S, Vec => null);
+        end func Create
+
+        func Create(K : Vec_Type::Type_Kind; S : Univ_Integer) -> Type is
+            return (Kind => #vec, Scalar => null,
+                Vec => (Kind => K, Size => S));
+        end func Create
+
+        func Get_Scalar(T : Type) -> Scalar_Type is
+            return T.Scalar;
+        end func Get_Scalar
+
+        func Get_Vec(T : Type) -> Vec_Type is
+            return T.Vec;
+        end func Get_Vec
+
+        func To_String(T : Type) -> Univ_String is
+            case T.Kind of
+                [#scalar] => return To_String(Get_Scalar(T));
+                [#vec] => 
+                    const V := Get_Vec(T);
+                    return To_String(V.Kind) | "(" | V.Size | ")";
+            end case
+        end func To_String
+
+        op "=?"(L, R : Type) -> Ordering is
+            if L.Kind != R.Kind then
+                return #unordered;
+            end if
+            case L.Kind of
+                [#scalar] => return (Get_Scalar(L) =? Get_Scalar(R));
+                [#vec] => return (Get_Vec(L) =? Get_Vec(R));
+            end case
+        end op "=?"
+    end class Type
+end class SailGate::IR

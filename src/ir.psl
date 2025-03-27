@@ -50,4 +50,18 @@ exports
             end case
         end op "=?"
     end class Type
+
+    class Domain is
+    exports
+        func To_String(D : Domain) -> Univ_String is
+            return To_String(D.Name) | "(" | To_String(D.Kind) | ")";
+        end func To_String
+    end class Domain
+
+    class Full_Type is
+    exports
+        func To_String(F : Full_Type) -> Univ_String is
+            return "Type(" | To_String(F.Val) | ", " | To_String(F.Dom) | ")";
+        end func To_String
+    end class Full_Type
 end class SailGate::IR

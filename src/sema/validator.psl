@@ -1,8 +1,14 @@
 import PSC::Reflection;
 import SailGate::*;
 import SailGate::Util::*;
+import SailGate::IR;
+import SailGate::Sema;
 
 class SailGate::Sema::Sema_Error is
+
+    abstract interface Domain_State<> is
+    end interface Domain_State
+
 exports
     func Dump(E : Sema_Error) is
         if E.Source not null then
@@ -29,39 +35,6 @@ class SailGate::Sema::Validator is
         const UVec := Prelude_Prefix | "UVec<";
     end interface Type_Name
 
-    /// Creates IR type from RTL type descriptor. Returns null for
-    /// incorrect types
-    func Type_To_Rtl(Type : Reflection::Type_Descriptor) -> optional IR::Type is
-        const TN := Name(Type);
-        if Starts_With(TN, Type_Name::Logic) then
-            return Create(#logic);
-        end if
-
-        var Vec_Type : IR::Vec_Type::Type_Kind := #logic;
-        var Vec_Type_Name := Type_Name::LVec;
-        if Starts_With(TN, Type_Name::SVec) then
-            Vec_Type := #int;
-            Vec_Type_Name := Type_Name::SVec;
-        elsif Starts_With(TN, Type_Name::UVec) then
-            Vec_Type := #uint;
-            Vec_Type_Name := Type_Name::UVec;
-        elsif not Starts_With(TN, Type_Name::LVec) then
-            return null; 
-        end if
-
-        // Type params can't be accessed unless they're "finished"
-        // This is dusty as hell, but it will do for now
-        var Vec_Size := 0;
-        for I in (|Vec_Type_Name| + 1)..|TN| forward loop
-            case TN[I] of
-                ['0'..'9'] => Vec_Size := Vec_Size * 10 + (TN[I] - '0');
-                [..] => exit loop;
-            end case
-        end loop
-
-        return Create(Vec_Type, Vec_Size);
-    end func Type_To_Rtl
-
     func Check(ref var Ports : IR::Entity::Port_Def;
             Comp : Reflection::Component_Info) -> optional Sema_Error is
         const Comp_Decl := Comp.Component_Decl;
@@ -72,7 +45,7 @@ class SailGate::Sema::Validator is
                 Source => Comp_Source);
         end if
 
-        const Rtl_Type := Type_To_Rtl(Comp.Type_Desc);
+        const Rtl_Type := Sema::Util::Type_To_Rtl(Comp.Type_Desc);
         if Rtl_Type is null then
             return (Kind => #invalid_field_type,
                 Source => Comp_Source);
@@ -131,7 +104,7 @@ class SailGate::Sema::Validator is
                 end if
 
                 const Type_Desc := Type_Desc_At_Locator(P.Type_Info);
-                const Rtl_Type := Type_To_Rtl(Type_Desc);
+                const Rtl_Type := Sema::Util::Type_To_Rtl(Type_Desc);
                 if P.Is_Optional or else Rtl_Type is null then
                     return (Kind => #invalid_field_type,
                         Source => P_Source);
@@ -145,7 +118,7 @@ class SailGate::Sema::Validator is
         const Comp := Components(D.Desc);
         var Outputs : IR::Entity::Port_Def := [];
         for I in 1..|Comp| forward loop
-            const Rtl_Type := Type_To_Rtl(Comp[I].Type_Desc);
+            const Rtl_Type := Sema::Util::Type_To_Rtl(Comp[I].Type_Desc);
             const Comp_Decl := Comp[I].Component_Decl;
             const Comp_Source := Decl_Source_Pos(Comp_Decl);
 

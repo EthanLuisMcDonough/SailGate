@@ -5,43 +5,57 @@
 
 class SailGate::Prelude is
 exports
+    func Has_Clock(D : Domain_Kind) -> Boolean is
+        case D of
+            [#clock | #clock_reset | #clock_reset_en] => return #true;
+            [..] => return #false;
+        end case
+    end func Has_Clock
+
+    func Has_Reset(D : Domain_Kind) -> Boolean is
+        case D of
+            [#clock_reset | #clock_reset_en] => return #true;
+            [..] => return #false;
+        end case
+    end func Has_Reset
+
+    func Has_Enable(D : Domain_Kind) -> Boolean is
+        case D of
+            [#clock_reset_en] => return #true;
+            [..] => return #false;
+        end case
+    end func Has_Enable
+
     class Domain is
-        type Domain_Level is Integer<0..3>;
-
-        const Level : Domain_Level;
+        const Kind : Domain_Kind;
         const Name : Univ_Enumeration;
-
-        const ASYNC_ID := 0;
-        const CLOCK_ID := 1;
-        const CLOCK_RESET_ID := 2;
-        const CLOCK_RESET_ENABLE_ID := 3;
     exports
         func Has_Clock(D : Domain) -> Boolean is
-            return D.Level >= CLOCK_ID;
+            return Has_Clock(D.Kind);
         end func Has_Clock
 
         func Has_Reset(D : Domain) -> Boolean is
-            return D.Level >= CLOCK_RESET_ID;
+            return Has_Reset(D.Kind);
         end func Has_Reset
 
         func Has_Enable(D : Domain) -> Boolean is
-            return D.Level >= CLOCK_RESET_ID;
+            return Has_Enable(D.Kind);
         end func Has_Enable
 
         func Get_Async() -> Domain is
-            return (Name => #async, Level => ASYNC_ID);
+            return (Name => #async, Kind => #async);
         end func Get_Async
 
         func Clock(Name : Univ_Enumeration) -> Domain is
-            return (Name => Name, Level => CLOCK_ID);
+            return (Name => Name, Kind => #clock);
         end func Clock
 
         func Clock_Reset(Name : Univ_Enumeration) -> Domain is
-            return (Name => Name, Level => CLOCK_RESET_ID);
+            return (Name => Name, Kind => #clock_reset);
         end func Clock_Reset
 
         func Clock_Reset_Enable(Name : Univ_Enumeration) -> Domain is
-            return (Name => Name, Level => CLOCK_RESET_ENABLE_ID);
+            return (Name => Name, Kind => #clock_reset_en);
         end func Clock_Reset_Enable
 
         op "=?"(L, R : Domain) -> Ordering is
@@ -50,7 +64,7 @@ exports
             end if
 
             if L.Name == R.Name then
-                {*"Clock domain name conflict"* L.Level == R.Level}
+                {*"Clock domain name conflict"* L.Kind == R.Kind}
                 return #equal;
             else
                 return #unordered;
@@ -346,4 +360,3 @@ exports
     end class UVec
 
 end class SailGate::Prelude
-

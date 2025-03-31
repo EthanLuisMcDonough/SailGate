@@ -37,9 +37,10 @@ interface SailGate::Prelude<> is
         func In_SBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean;
         func Calc_Slice_Size(Original_Size : Vec_Size;
             Start : Natural; End : Natural) -> Vec_Size;
+        func Force_Dom(A : Domain; B : Domain) -> Domain;
     end interface Util
 
-    type Logic_Val is Enum<[ #false, #true, #x, #z, #dont_care ]>;
+    type Logic_Val is Enum<[#false, #true, #x, #z, #dont_care]>;
 
     /// Base RTL type. Outlines basic operations all RTL type should have
     abstract interface Rtl_Type<D : Domain> is
@@ -87,7 +88,6 @@ interface SailGate::Prelude<> is
         op "=?"(L, R : Vec_Rtl_Type) -> Ordering;
         op "indexing"(M : Vec_Rtl_Type; Key : Vec_Index<S>) -> T;
         op "var_indexing"(ref var M : Vec_Rtl_Type; Key : Vec_Index<S>) -> ref var T;
-        op "[]"() -> Vec_Rtl_Type;
     end interface Vec_Rtl_Type
 
     /// Base type for logic vectors
@@ -105,7 +105,8 @@ interface SailGate::Prelude<> is
         op "=?"(L, R : Vec) -> Ordering;
         op "indexing"(M : Vec; Key : Vec_Index<S>) -> Logic<D>;
         op "var_indexing"(ref var M : Vec; Key : Vec_Index<S>) -> ref var Logic<D>;
-        op "[]"() -> Vec;
+        op "|"(L : Vec; R : OV is Vec<>) ->
+            (Result_Vec is Vec<S + OV::S, Util::Force_Dom(D, OV::D)>);
         op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, S)}) -> Vec;
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> Vec;
     end interface Vec
@@ -133,7 +134,8 @@ interface SailGate::Prelude<> is
         op "=?"(L, R : IVec) -> Ordering;
         op "indexing"(M : IVec; Key : Vec_Index<S>) -> Logic<D>;
         op "var_indexing"(ref var M : IVec; Key : Vec_Index<S>) -> ref var Logic<D>;
-        op "[]"() -> IVec;
+        op "|"(L : IVec; R : OV is IVec<>) ->
+            (Result_Vec is IVec<S + OV::S, Util::Force_Dom(D, OV::D)>);
         op ">>"(L, R : IVec) -> IVec;
         op "<<"(L, R : IVec) -> IVec;
         op "+"(L, R : IVec) -> IVec;
@@ -156,7 +158,8 @@ interface SailGate::Prelude<> is
         op "=?"(L, R : UVec) -> Ordering;
         op "indexing"(M : UVec; Key : Vec_Index<S>) -> Logic<D>;
         op "var_indexing"(ref var M : UVec; Key : Vec_Index<S>) -> ref var Logic<D>;
-        op "[]"() -> UVec;
+        op "|"(L : UVec; R : OV is UVec<>) ->
+            (Result_Vec is UVec<S + OV::S, Util::Force_Dom(D, OV::D)>);
         op ">>"(L, R : UVec) -> UVec;
         op "<<"(L, R : UVec) -> UVec;
         op "+"(L, R : UVec) -> UVec;

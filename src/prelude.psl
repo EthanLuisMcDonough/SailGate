@@ -114,8 +114,13 @@ exports
                 [[End]] < [[Original_Size]]}
             return [[|Start - End| + 1]];
         end func Calc_Slice_Size
-    end class Util
 
+        func Force_Dom(A : Domain; B : Domain) -> Domain is
+            {*"Operand clock domains do not match"* A == Async 
+                or else B == Async or else A == B}
+            return (if A == Async then B else A);
+        end func Force_Dom
+    end class Util
 
     class Logic is
     exports
@@ -211,9 +216,10 @@ exports
             return M.Internal_Ref;
         end op "var_indexing"
 
-        op "[]"() -> Vec is
-            return (Internal_Ref => 0);
-        end op "[]"
+        op "|"(L : Vec; R : OV is Vec<>) -> (Result_Vec is Vec<S + OV::S,
+                Util::Force_Dom(D, OV::D)>) is
+            {#false}
+        end op "|"
     end class Vec
 
     class IVec is
@@ -283,9 +289,10 @@ exports
             return M.Internal_Ref;
         end op "var_indexing"
 
-        op "[]"() -> IVec is
-            return (Internal_Ref => 0);
-        end op "[]"
+        op "|"(L : IVec; R : OV is IVec<>) -> (Result_Vec is IVec<S + OV::S,
+                Util::Force_Dom(D, OV::D)>) is
+            {#false}
+        end op "|"
 
         func Logic_Vec(V : IVec) -> Vec<S, D> is
             return (Internal_Ref => 0);
@@ -359,9 +366,10 @@ exports
             return M.Internal_Ref;
         end op "var_indexing"
 
-        op "[]"() -> UVec is
-            return (Internal_Ref => 0);
-        end op "[]"
+        op "|"(L : UVec; R : OV is UVec<>) -> (Result_Vec is UVec<S + OV::S,
+                Util::Force_Dom(D, OV::D)>) is
+            {#false}
+        end op "|"
 
         func Logic_Vec(V : UVec) -> Vec<S, D> is
             return (Internal_Ref => 0);

@@ -105,6 +105,15 @@ exports
             const Half_Unsigned := (2 ** SZ) / 2;
             return U >= -Half_Unsigned and U < Half_Unsigned;
         end func In_SBounds
+
+        func Calc_Slice_Size(Original_Size : Vec_Size;
+                Start : Natural; End : Natural) -> Vec_Size is
+            {*"Slice start must be smaller than vec length"*
+                [[Start]] < [[Original_Size]]}
+            {*"Slice end must be smaller than vec length"*
+                [[End]] < [[Original_Size]]}
+            return [[|Start - End| + 1]];
+        end func Calc_Slice_Size
     end class Util
 
 
@@ -359,4 +368,11 @@ exports
         end func Logic_Vec
     end class UVec
 
+    class Range is
+    exports
+        func Slice(V : In_Vec is Vec<>) -> (Ret_Vec is
+                Vec<Util::Calc_Slice_Size(In_Vec::S, S, E), In_Vec::D>) is
+            {#false}
+        end func Slice
+    end class Range
 end class SailGate::Prelude

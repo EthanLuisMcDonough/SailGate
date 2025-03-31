@@ -1,0 +1,13 @@
+// RUN: %sailgate_typecheck
+// RUN: %sailgate_check
+
+import SailGate::Prelude::*;
+
+func Slice_Test() is
+    var Original : Vec<4> := 0;
+    var A : Vec<2> := Range::<1, 2>::Slice(Original);
+    var B : Vec<1> := Range::<0, 0>::Slice(A);
+
+    //CHECK: Error: (Prelude<>::)Vec<{{.*}}> does not match (Prelude<>::)Vec<3>
+    var C : Vec<3> := Range::<0, 3>::Slice(Original);
+end func Slice_Test

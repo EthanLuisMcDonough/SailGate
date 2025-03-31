@@ -2,6 +2,7 @@
 /// These are the types used by the end user to describe digital circuits
 interface SailGate::Prelude<> is
     type Vec_Size is Integer<1..2**31-1>;
+    type Natural is Integer<0..2**31-1>;
 
     type Domain_Kind is Enum<[#async, #clock, #clock_reset, #clock_reset_en]>;
     func Has_Clock(D : Domain_Kind) -> Boolean;
@@ -34,6 +35,8 @@ interface SailGate::Prelude<> is
         func Is_Vec_Str(S : Univ_String; SZ : Vec_Size) -> Boolean;
         func In_UBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean;
         func In_SBounds(U : Univ_Integer; SZ : Vec_Size) -> Boolean;
+        func Calc_Slice_Size(Original_Size : Vec_Size;
+            Start : Natural; End : Natural) -> Vec_Size;
     end interface Util
 
     type Logic_Val is Enum<[ #false, #true, #x, #z, #dont_care ]>;
@@ -165,4 +168,9 @@ interface SailGate::Prelude<> is
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> UVec;
         func Logic_Vec(V : UVec) -> Vec<S, D>;
     end interface UVec
+
+    interface Range<S : Natural; E : Natural> is
+        func Slice(V : In_Vec is Vec<>) ->
+            (Ret_Vec is Vec<Util::Calc_Slice_Size(In_Vec::S, S, E), In_Vec::D>);
+    end interface Range
 end interface SailGate::Prelude

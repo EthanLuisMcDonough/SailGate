@@ -45,7 +45,7 @@ interface SailGate::Prelude<> is
     /// Boolean type that is bound to a clock domain.
     /// This ensures that condition expressions do not cross
     /// clock domains
-    interface Rtl_Bool<DOM : Domain> is
+    interface Rtl_Bool<Dom : Domain> is
         op "not"(L : Rtl_Bool) -> Rtl_Bool;
         op "and"(L, R : Rtl_Bool) -> Rtl_Bool;
         op "or"(L, R : Rtl_Bool) -> Rtl_Bool;
@@ -55,27 +55,27 @@ interface SailGate::Prelude<> is
     end interface Rtl_Bool
 
     /// Special ordering type used for RTL conversions
-    interface Rtl_Ordering<DOM : Domain> is
+    interface Rtl_Ordering<Dom : Domain> is
         func Create(Ord : Ordering) -> Rtl_Ordering;
-        op "to_bool"(Ord : Rtl_Ordering; Mask : Univ_Integer) -> Rtl_Bool<DOM>;
+        op "to_bool"(Ord : Rtl_Ordering; Mask : Univ_Integer) -> Rtl_Bool<Dom>;
     end interface Rtl_Ordering
 
     /// Base RTL type. Outlines basic operations all RTL type should have
-    abstract interface Rtl_Type<D : Domain> is
+    abstract interface Rtl_Type<Dom : Domain> is
         op "not"(L : Rtl_Type) -> Rtl_Type;
         op "and"(Left, R : Rtl_Type) -> Rtl_Type;
         op "or"(Left, R : Rtl_Type) -> Rtl_Type;
         op "xor"(Left, R : Rtl_Type) -> Rtl_Type;
-        op "=?"(L, R : Rtl_Type) -> Rtl_Ordering<D>;
+        op "=?"(L, R : Rtl_Type) -> Rtl_Ordering<Dom>;
     end interface Rtl_Type
 
     /// Base scalar type
-    abstract interface Scalar_Type<D : Domain> extends Rtl_Type<D> is
+    abstract interface Scalar_Type<Dom : Domain> extends Rtl_Type<Dom> is
     end interface Scalar_Type
 
     /// Base logical unit. Represents a wire signal. This can be 0, 1, unknown,
     /// high-impedance, or don't care. Each value corresponds to a YOSYS bit value
-    interface Logic<D : Domain := Async> implements Scalar_Type<D> is
+    interface Logic<Dom : Domain := Async> implements Scalar_Type<Dom> is
         const Value : Logic_Val;
 
         op "from_univ"(Univ : Univ_Integer { Univ in 0..1 }) -> Logic;
@@ -87,51 +87,51 @@ interface SailGate::Prelude<> is
         op "and"(Left, R : Logic) -> Logic;
         op "or"(Left, R : Logic) -> Logic;
         op "xor"(Left, R : Logic) -> Logic;
-        op "=?"(L, R : Logic) -> Rtl_Ordering<D>;
+        op "=?"(L, R : Logic) -> Rtl_Ordering<Dom>;
     end interface Logic
 
     // Checked vector index
-    interface Vec_Index<S : Vec_Size> is
+    interface Vec_Index<Size : Vec_Size> is
         const Val : Univ_Integer;
-        op "from_univ"(U : Univ_Integer {U < S}) -> Vec_Index;
+        op "from_univ"(U : Univ_Integer {U < Size}) -> Vec_Index;
     end interface Vec_Index
 
     /// Base type for vector RTL types
-    abstract interface Vec_Rtl_Type<S : Vec_Size; D : Domain; T is Scalar_Type<D>>
-            extends Rtl_Type<D> is
+    abstract interface Vec_Rtl_Type<Size : Vec_Size; Dom : Domain; T is Scalar_Type<Dom>>
+            extends Rtl_Type<Dom> is
         op "not"(L : Vec_Rtl_Type) -> Vec_Rtl_Type;
         op "and"(L, R : Vec_Rtl_Type) -> Vec_Rtl_Type;
         op "or"(L, R : Vec_Rtl_Type) -> Vec_Rtl_Type;
         op "xor"(L, R : Vec_Rtl_Type) -> Vec_Rtl_Type;
-        op "=?"(L, R : Vec_Rtl_Type) -> Rtl_Ordering<D>;
-        op "indexing"(M : Vec_Rtl_Type; Key : Vec_Index<S>) -> T;
-        op "var_indexing"(ref var M : Vec_Rtl_Type; Key : Vec_Index<S>) -> ref var T;
+        op "=?"(L, R : Vec_Rtl_Type) -> Rtl_Ordering<Dom>;
+        op "indexing"(M : Vec_Rtl_Type; Key : Vec_Index<Size>) -> T;
+        op "var_indexing"(ref var M : Vec_Rtl_Type; Key : Vec_Index<Size>) -> ref var T;
     end interface Vec_Rtl_Type
 
     /// Base type for logic vectors
-    abstract interface Base_Logic_Vec<S : Vec_Size; D : Domain>
-        extends Vec_Rtl_Type<S, D, Logic<D>> is
+    abstract interface Base_Logic_Vec<Size : Vec_Size; Dom : Domain>
+        extends Vec_Rtl_Type<Size, Dom, Logic<Dom>> is
     end interface Base_Logic_Vec
 
     /// Logic vector type. Represents a bundle of wires of length S.
     /// Corresponds with logic_vec in VHDL.
-    interface Vec<S : Vec_Size; D : Domain := Async> implements Base_Logic_Vec<S, D> is
+    interface Vec<Size : Vec_Size; Dom : Domain := Async> implements Base_Logic_Vec<Size, Dom> is
         op "not"(L : Vec) -> Vec;
         op "and"(L, R : Vec) -> Vec;
         op "or"(L, R : Vec) -> Vec;
         op "xor"(L, R : Vec) -> Vec;
-        op "=?"(L, R : Vec) -> Rtl_Ordering<D>;
-        op "indexing"(M : Vec; Key : Vec_Index<S>) -> Logic<D>;
-        op "var_indexing"(ref var M : Vec; Key : Vec_Index<S>) -> ref var Logic<D>;
+        op "=?"(L, R : Vec) -> Rtl_Ordering<Dom>;
+        op "indexing"(M : Vec; Key : Vec_Index<Size>) -> Logic<Dom>;
+        op "var_indexing"(ref var M : Vec; Key : Vec_Index<Size>) -> ref var Logic<Dom>;
         op "|"(L : Vec; R : OV is Vec<>) ->
-            (Result_Vec is Vec<S + OV::S, Util::Force_Dom(D, OV::D)>);
-        op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, S)}) -> Vec;
-        op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> Vec;
+            (Result_Vec is Vec<Size + OV::Size, Util::Force_Dom(Dom, OV::Dom)>);
+        op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, Size)}) -> Vec;
+        op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> Vec;
     end interface Vec
 
     /// Base type for signed logic vectors
-    abstract interface Base_Int_Vec<S : Vec_Size; D : Domain>
-            extends Base_Logic_Vec<S, D> is
+    abstract interface Base_Int_Vec<Size : Vec_Size; Dom : Domain>
+            extends Base_Logic_Vec<Size, Dom> is
         op ">>"(L, R : Base_Int_Vec) -> Base_Int_Vec;
         op "<<"(L, R : Base_Int_Vec) -> Base_Int_Vec;
         op "+"(L, R : Base_Int_Vec) -> Base_Int_Vec;
@@ -139,21 +139,21 @@ interface SailGate::Prelude<> is
         op "*"(L, R : Base_Int_Vec) -> Base_Int_Vec;
         op "/"(L, R : Base_Int_Vec) -> Base_Int_Vec;
         op "mod"(L, R : Base_Int_Vec) -> Base_Int_Vec;
-        func Logic_Vec(V : Base_Int_Vec) -> Vec<S, D>;
+        func Logic_Vec(V : Base_Int_Vec) -> Vec<Size, Dom>;
     end interface Base_Int_Vec
 
     /// Represents a logic vector that carries a signed integer value.
     /// Allows signed arithmetic operations to be applied to value.
-    interface IVec<S : Vec_Size; D : Domain := Async> is
+    interface IVec<Size : Vec_Size; Dom : Domain := Async> is
         op "not"(L : IVec) -> IVec;
         op "and"(L, R : IVec) -> IVec;
         op "or"(L, R : IVec) -> IVec;
         op "xor"(L, R : IVec) -> IVec;
-        op "=?"(L, R : IVec) -> Rtl_Ordering<D>;
-        op "indexing"(M : IVec; Key : Vec_Index<S>) -> Logic<D>;
-        op "var_indexing"(ref var M : IVec; Key : Vec_Index<S>) -> ref var Logic<D>;
+        op "=?"(L, R : IVec) -> Rtl_Ordering<Dom>;
+        op "indexing"(M : IVec; Key : Vec_Index<Size>) -> Logic<Dom>;
+        op "var_indexing"(ref var M : IVec; Key : Vec_Index<Size>) -> ref var Logic<Dom>;
         op "|"(L : IVec; R : OV is IVec<>) ->
-            (Result_Vec is IVec<S + OV::S, Util::Force_Dom(D, OV::D)>);
+            (Result_Vec is IVec<Size + OV::Size, Util::Force_Dom(Dom, OV::Dom)>);
         op ">>"(L, R : IVec) -> IVec;
         op "<<"(L, R : IVec) -> IVec;
         op "+"(L, R : IVec) -> IVec;
@@ -161,23 +161,23 @@ interface SailGate::Prelude<> is
         op "*"(L, R : IVec) -> IVec;
         op "/"(L, R : IVec) -> IVec;
         op "mod"(L, R : IVec) -> IVec;
-        op "from_univ"(Univ : Univ_Integer {Util::In_SBounds(Univ, S)}) -> IVec;
-        op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> IVec;
-        func Logic_Vec(V : IVec) -> Vec<S, D>;
+        op "from_univ"(Univ : Univ_Integer {Util::In_SBounds(Univ, Size)}) -> IVec;
+        op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> IVec;
+        func Logic_Vec(V : IVec) -> Vec<Size, Dom>;
     end interface IVec
 
     /// Represents a logic vector that carries an unsigned integer value.
     /// Allows unsigned arithmetic operations to be applied to value.
-    interface UVec<S : Vec_Size; D : Domain := Async> is
+    interface UVec<Size : Vec_Size; Dom : Domain := Async> is
         op "not"(L : UVec) -> UVec;
         op "and"(L, R : UVec) -> UVec;
         op "or"(L, R : UVec) -> UVec;
         op "xor"(L, R : UVec) -> UVec;
-        op "=?"(L, R : UVec) -> Rtl_Ordering<D>;
-        op "indexing"(M : UVec; Key : Vec_Index<S>) -> Logic<D>;
-        op "var_indexing"(ref var M : UVec; Key : Vec_Index<S>) -> ref var Logic<D>;
+        op "=?"(L, R : UVec) -> Rtl_Ordering<Dom>;
+        op "indexing"(M : UVec; Key : Vec_Index<Size>) -> Logic<Dom>;
+        op "var_indexing"(ref var M : UVec; Key : Vec_Index<Size>) -> ref var Logic<Dom>;
         op "|"(L : UVec; R : OV is UVec<>) ->
-            (Result_Vec is UVec<S + OV::S, Util::Force_Dom(D, OV::D)>);
+            (Result_Vec is UVec<Size + OV::Size, Util::Force_Dom(Dom, OV::Dom)>);
         op ">>"(L, R : UVec) -> UVec;
         op "<<"(L, R : UVec) -> UVec;
         op "+"(L, R : UVec) -> UVec;
@@ -185,13 +185,13 @@ interface SailGate::Prelude<> is
         op "*"(L, R : UVec) -> UVec;
         op "/"(L, R : UVec) -> UVec;
         op "mod"(L, R : UVec) -> UVec;
-        op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, S)}) -> UVec;
-        op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, S)}) -> UVec;
-        func Logic_Vec(V : UVec) -> Vec<S, D>;
+        op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, Size)}) -> UVec;
+        op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> UVec;
+        func Logic_Vec(V : UVec) -> Vec<Size, Dom>;
     end interface UVec
 
-    interface Range<S : Natural; E : Natural> is
-        func Slice(V : In_Vec is Vec<>) ->
-            (Ret_Vec is Vec<Util::Calc_Slice_Size(In_Vec::S, S, E), In_Vec::D>);
+    interface Range<Start : Natural; End : Natural> is
+        func Slice(V : In_Vec is Vec<>) -> (Ret_Vec is
+            Vec<Util::Calc_Slice_Size(In_Vec::Size, Start, End), In_Vec::Dom>);
     end interface Range
 end interface SailGate::Prelude

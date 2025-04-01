@@ -6,6 +6,6 @@
 import SailGate::Prelude::*;
 
 func Test_Invalid_String() is
-    // CHECK: Error: Assertion failed: {> Util::Is_Vec_Str(U, S) <}
+    // CHECK: Error: Assertion failed: {> Util::Is_Vec_Str(U, Size) <}
     var Invalid : IVec<3> := "0101";
 end func Test_Invalid_String

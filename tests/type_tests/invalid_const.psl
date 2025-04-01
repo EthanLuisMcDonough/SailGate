@@ -6,6 +6,6 @@
 import SailGate::Prelude::*;
 
 func Test_Invalid_Const() is
-    // CHECK: Error: Assertion failed:  {> Util::In_SBounds(Univ, S) <}
+    // CHECK: Error: Assertion failed:  {> Util::In_SBounds(Univ, Size) <}
     var Invalid : IVec<3> := 5;
 end func Test_Invalid_Const

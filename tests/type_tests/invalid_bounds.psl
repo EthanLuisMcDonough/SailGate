@@ -13,6 +13,6 @@ func Test_Invalid_Bounds() is
     Invalid[Okay_Index] := 1;
     Invalid[1] := 0;
 
-    // CHECK: Error: Assertion failed:  {> U < S <}
+    // CHECK: Error: Assertion failed:  {> U < Size <}
     Invalid[Bad_Index] := 0;
 end func Test_Invalid_Bounds

@@ -122,6 +122,42 @@ exports
         end func Force_Dom
     end class Util
 
+    class Rtl_Bool is
+        const Value : Boolean;
+    exports
+        op "not"(L : Rtl_Bool) -> Rtl_Bool is
+            return (Value => not L.Value);
+        end op "not"
+
+        op "and"(L, R : Rtl_Bool) -> Rtl_Bool is
+            return (Value => L.Value and R.Value);
+        end op "and"
+
+        op "or"(L, R : Rtl_Bool) -> Rtl_Bool is
+            return (Value => L.Value or R.Value);
+        end op "or"
+
+        op "from_univ"(Univ : Univ_Enumeration) -> Rtl_Bool is
+            return (Value => Univ);
+        end op "from_univ"
+
+        op "to_bool"(R : Rtl_Bool) -> Boolean is
+            return R.Value;
+        end op "to_bool"
+    end class Rtl_Bool
+
+    class Rtl_Ordering is
+        const Ord : Ordering;
+    exports
+        func Create(Ord : Ordering) -> Rtl_Ordering is
+            return (Ord => Ord);
+        end func Create
+
+        op "to_bool"(Ord : Rtl_Ordering; Mask : Univ_Integer) -> Rtl_Bool<DOM> is
+            return "to_bool"(Ord, Mask);
+        end op "to_bool"
+    end class Rtl_Ordering
+
     class Logic is
     exports
         op "from_univ"(Univ : Univ_Enumeration) -> Logic is
@@ -165,7 +201,7 @@ exports
             {#false}
         end op "xor"
 
-        op "=?"(L, R : Logic) -> Ordering is
+        op "=?"(L, R : Logic) -> Rtl_Ordering<D> is
             {#false}
         end op "=?"
     end class Logic
@@ -204,7 +240,7 @@ exports
             return L
         end op "xor"
 
-        op "=?"(L, R : Vec) -> Ordering is
+        op "=?"(L, R : Vec) -> Rtl_Ordering<D> is
             {#false}
         end op "=?"
 
@@ -249,7 +285,7 @@ exports
             return L
         end op "xor"
 
-        op "=?"(L, R : IVec) -> Ordering is
+        op "=?"(L, R : IVec) -> Rtl_Ordering<D> is
             {#false}
         end op "=?"
 
@@ -326,7 +362,7 @@ exports
             return L
         end op "xor"
 
-        op "=?"(L, R : UVec) -> Ordering is
+        op "=?"(L, R : UVec) -> Rtl_Ordering<D> is
             {#false}
         end op "=?"
 

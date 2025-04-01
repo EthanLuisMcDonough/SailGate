@@ -42,13 +42,31 @@ interface SailGate::Prelude<> is
 
     type Logic_Val is Enum<[#false, #true, #x, #z, #dont_care]>;
 
+    /// Boolean type that is bound to a clock domain.
+    /// This ensures that condition expressions do not cross
+    /// clock domains
+    interface Rtl_Bool<DOM : Domain> is
+        op "not"(L : Rtl_Bool) -> Rtl_Bool;
+        op "and"(L, R : Rtl_Bool) -> Rtl_Bool;
+        op "or"(L, R : Rtl_Bool) -> Rtl_Bool;
+        op "from_univ"(Univ : Univ_Enumeration {Univ == #true
+            or else Univ == #false}) -> Rtl_Bool;
+        op "to_bool"(R : Rtl_Bool) -> Boolean;
+    end interface Rtl_Bool
+
+    /// Special ordering type used for RTL conversions
+    interface Rtl_Ordering<DOM : Domain> is
+        func Create(Ord : Ordering) -> Rtl_Ordering;
+        op "to_bool"(Ord : Rtl_Ordering; Mask : Univ_Integer) -> Rtl_Bool<DOM>;
+    end interface Rtl_Ordering
+
     /// Base RTL type. Outlines basic operations all RTL type should have
     abstract interface Rtl_Type<D : Domain> is
         op "not"(L : Rtl_Type) -> Rtl_Type;
         op "and"(Left, R : Rtl_Type) -> Rtl_Type;
         op "or"(Left, R : Rtl_Type) -> Rtl_Type;
         op "xor"(Left, R : Rtl_Type) -> Rtl_Type;
-        op "=?"(L, R : Rtl_Type) -> Ordering;
+        op "=?"(L, R : Rtl_Type) -> Rtl_Ordering<D>;
     end interface Rtl_Type
 
     /// Base scalar type
@@ -69,7 +87,7 @@ interface SailGate::Prelude<> is
         op "and"(Left, R : Logic) -> Logic;
         op "or"(Left, R : Logic) -> Logic;
         op "xor"(Left, R : Logic) -> Logic;
-        op "=?"(L, R : Logic) -> Ordering;
+        op "=?"(L, R : Logic) -> Rtl_Ordering<D>;
     end interface Logic
 
     // Checked vector index
@@ -85,7 +103,7 @@ interface SailGate::Prelude<> is
         op "and"(L, R : Vec_Rtl_Type) -> Vec_Rtl_Type;
         op "or"(L, R : Vec_Rtl_Type) -> Vec_Rtl_Type;
         op "xor"(L, R : Vec_Rtl_Type) -> Vec_Rtl_Type;
-        op "=?"(L, R : Vec_Rtl_Type) -> Ordering;
+        op "=?"(L, R : Vec_Rtl_Type) -> Rtl_Ordering<D>;
         op "indexing"(M : Vec_Rtl_Type; Key : Vec_Index<S>) -> T;
         op "var_indexing"(ref var M : Vec_Rtl_Type; Key : Vec_Index<S>) -> ref var T;
     end interface Vec_Rtl_Type
@@ -102,7 +120,7 @@ interface SailGate::Prelude<> is
         op "and"(L, R : Vec) -> Vec;
         op "or"(L, R : Vec) -> Vec;
         op "xor"(L, R : Vec) -> Vec;
-        op "=?"(L, R : Vec) -> Ordering;
+        op "=?"(L, R : Vec) -> Rtl_Ordering<D>;
         op "indexing"(M : Vec; Key : Vec_Index<S>) -> Logic<D>;
         op "var_indexing"(ref var M : Vec; Key : Vec_Index<S>) -> ref var Logic<D>;
         op "|"(L : Vec; R : OV is Vec<>) ->
@@ -131,7 +149,7 @@ interface SailGate::Prelude<> is
         op "and"(L, R : IVec) -> IVec;
         op "or"(L, R : IVec) -> IVec;
         op "xor"(L, R : IVec) -> IVec;
-        op "=?"(L, R : IVec) -> Ordering;
+        op "=?"(L, R : IVec) -> Rtl_Ordering<D>;
         op "indexing"(M : IVec; Key : Vec_Index<S>) -> Logic<D>;
         op "var_indexing"(ref var M : IVec; Key : Vec_Index<S>) -> ref var Logic<D>;
         op "|"(L : IVec; R : OV is IVec<>) ->
@@ -155,7 +173,7 @@ interface SailGate::Prelude<> is
         op "and"(L, R : UVec) -> UVec;
         op "or"(L, R : UVec) -> UVec;
         op "xor"(L, R : UVec) -> UVec;
-        op "=?"(L, R : UVec) -> Ordering;
+        op "=?"(L, R : UVec) -> Rtl_Ordering<D>;
         op "indexing"(M : UVec; Key : Vec_Index<S>) -> Logic<D>;
         op "var_indexing"(ref var M : UVec; Key : Vec_Index<S>) -> ref var Logic<D>;
         op "|"(L : UVec; R : OV is UVec<>) ->

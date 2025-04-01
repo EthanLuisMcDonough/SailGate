@@ -1,0 +1,26 @@
+// RUN: %sailgate_typecheck
+// RUN: %sailgate_check
+
+import SailGate::Prelude::*;
+
+func Comparison_Test() is
+    const D1 := Domain::Clock(#a);
+
+    var A : Vec<3> := 0;
+    var B : Vec<3> := 0;
+    var C : Vec<3, D1> := 0;
+    var D : Vec<3, D1> := 0;
+
+    if A > B and A == B then
+        null;
+    end if
+
+    if C != D or C <= D then
+        null;
+    end if
+
+    // CHECK: Info: operand's type (Prelude<>::)Rtl_Bool<D1> does not match param type (Prelude<>::)Rtl_Bool<Async>
+    if A == B and C == D then
+        null;
+    end if
+end func Comparison_Test

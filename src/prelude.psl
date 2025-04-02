@@ -418,5 +418,15 @@ exports
                 Vec<Util::Calc_Slice_Size(In_Vec::Size, Start, End), In_Vec::Dom>) is
             {#false}
         end func Slice
+
+        func Slice(V : In_Vec is IVec<>) -> (Ret_Vec is
+                IVec<Util::Calc_Slice_Size(In_Vec::Size, Start, End), In_Vec::Dom>) is
+            {#false}
+        end func Slice
+
+        func Slice(V : In_Vec is UVec<>) -> (Ret_Vec is
+                UVec<Util::Calc_Slice_Size(In_Vec::Size, Start, End), In_Vec::Dom>) is
+            {#false}
+        end func Slice
     end class Range
 end class SailGate::Prelude

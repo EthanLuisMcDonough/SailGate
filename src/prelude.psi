@@ -193,5 +193,9 @@ interface SailGate::Prelude<> is
     interface Range<Start : Natural; End : Natural> is
         func Slice(V : In_Vec is Vec<>) -> (Ret_Vec is
             Vec<Util::Calc_Slice_Size(In_Vec::Size, Start, End), In_Vec::Dom>);
+        func Slice(V : In_Vec is IVec<>) -> (Ret_Vec is
+            IVec<Util::Calc_Slice_Size(In_Vec::Size, Start, End), In_Vec::Dom>);
+        func Slice(V : In_Vec is UVec<>) -> (Ret_Vec is
+            UVec<Util::Calc_Slice_Size(In_Vec::Size, Start, End), In_Vec::Dom>);
     end interface Range
 end interface SailGate::Prelude

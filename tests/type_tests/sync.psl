@@ -1,0 +1,17 @@
+// RUN: %sailgate_typecheck
+// RUN: %sailgate_check
+
+import SailGate::Prelude::*;
+
+func Slice_Test() is
+    const Clk := Domain::Clock(#a);
+    const Clk2 := Domain::Clock(#b);
+
+    var A : Vec<4> := 0;
+    var B : Vec<4, Clk> := Sync(A);
+    var C : Vec<4, Clk2> := Sync(A);
+
+    // CHECK: perand's type (Prelude<>::)Vec<4, Clk2> does not match param
+    // CHECK-SAME: type (Prelude<>::)Vec<"from_univ"(4), Prelude::Async>
+    var D : Vec<4, Clk> := Sync(C);
+end func Slice_Test

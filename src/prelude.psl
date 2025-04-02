@@ -144,6 +144,14 @@ exports
         op "to_bool"(R : Rtl_Bool) -> Boolean is
             return R.Value;
         end op "to_bool"
+
+        func Unsafe_Cast(B : OB is Rtl_Bool<>) -> Rtl_Bool is
+            return (Value => B.Value);
+        end func Unsafe_Cast
+
+        func Sync(B : Rtl_Bool<Async>) -> Rtl_Bool is
+            return (Value => B.Value);
+        end func Sync
     end class Rtl_Bool
 
     class Rtl_Ordering is
@@ -204,6 +212,14 @@ exports
         op "=?"(L, R : Logic) -> Rtl_Ordering<Dom> is
             {#false}
         end op "=?"
+
+        func Unsafe_Cast(L : OL is Logic<>) -> Logic is
+            {#false}
+        end func Unsafe_Cast
+
+        func Sync(L : Logic<Async>) -> Logic is
+            {#false}
+        end func Sync
     end class Logic
 
     class Vec_Index is
@@ -256,6 +272,14 @@ exports
                 Util::Force_Dom(Dom, OV::Dom)>) is
             {#false}
         end op "|"
+
+        func Unsafe_Cast(V : OV is Vec<>) -> Vec is
+            {#false}
+        end func Unsafe_Cast
+
+        func Sync(V : Vec<Size, Async>) -> Vec is
+            {#false}
+        end func Sync
     end class Vec
 
     class IVec is
@@ -329,6 +353,14 @@ exports
                 Util::Force_Dom(Dom, OV::Dom)>) is
             {#false}
         end op "|"
+
+        func Unsafe_Cast(V : OV is IVec<>) -> IVec is
+            {#false}
+        end func Unsafe_Cast
+
+        func Sync(V : IVec<Size, Async>) -> IVec is
+            {#false}
+        end func Sync
 
         func Logic_Vec(V : IVec) -> Vec<Size, Dom> is
             return (Internal_Ref => 0);
@@ -406,6 +438,14 @@ exports
                 Util::Force_Dom(Dom, OV::Dom)>) is
             {#false}
         end op "|"
+
+        func Unsafe_Cast(V : OV is UVec<>) -> UVec is
+            {#false}
+        end func Unsafe_Cast
+
+        func Sync(V : UVec<Size, Async>) -> UVec is
+            {#false}
+        end func Sync
 
         func Logic_Vec(V : UVec) -> Vec<Size, Dom> is
             return (Internal_Ref => 0);

@@ -52,6 +52,8 @@ interface SailGate::Prelude<> is
         op "from_univ"(Univ : Univ_Enumeration {Univ == #true
             or else Univ == #false}) -> Rtl_Bool;
         op "to_bool"(R : Rtl_Bool) -> Boolean;
+        func Unsafe_Cast(B : OB is Rtl_Bool<>) -> Rtl_Bool;
+        func Sync(B : Rtl_Bool<Async>) -> Rtl_Bool;
     end interface Rtl_Bool
 
     /// Special ordering type used for RTL conversions
@@ -88,6 +90,9 @@ interface SailGate::Prelude<> is
         op "or"(Left, R : Logic) -> Logic;
         op "xor"(Left, R : Logic) -> Logic;
         op "=?"(L, R : Logic) -> Rtl_Ordering<Dom>;
+
+        func Unsafe_Cast(L : OL is Logic<>) -> Logic;
+        func Sync(L : Logic<Async>) -> Logic;
     end interface Logic
 
     // Checked vector index
@@ -127,6 +132,8 @@ interface SailGate::Prelude<> is
             (Result_Vec is Vec<Size + OV::Size, Util::Force_Dom(Dom, OV::Dom)>);
         op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, Size)}) -> Vec;
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> Vec;
+        func Unsafe_Cast(V : OV is Vec<>) -> Vec;
+        func Sync(V : Vec<Size, Async>) -> Vec;
     end interface Vec
 
     /// Base type for signed logic vectors
@@ -163,6 +170,8 @@ interface SailGate::Prelude<> is
         op "mod"(L, R : IVec) -> IVec;
         op "from_univ"(Univ : Univ_Integer {Util::In_SBounds(Univ, Size)}) -> IVec;
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> IVec;
+        func Unsafe_Cast(V : OV is IVec<>) -> IVec;
+        func Sync(V : IVec<Size, Async>) -> IVec;
         func Logic_Vec(V : IVec) -> Vec<Size, Dom>;
     end interface IVec
 
@@ -187,6 +196,8 @@ interface SailGate::Prelude<> is
         op "mod"(L, R : UVec) -> UVec;
         op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, Size)}) -> UVec;
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> UVec;
+        func Unsafe_Cast(V : OV is UVec<>) -> UVec;
+        func Sync(V : UVec<Size, Async>) -> UVec;
         func Logic_Vec(V : UVec) -> Vec<Size, Dom>;
     end interface UVec
 

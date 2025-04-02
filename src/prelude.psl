@@ -84,8 +84,8 @@ exports
     class Util is
     exports
         func Is_Logic_Char(S : Univ_Character) -> Boolean is
-            return S == 'X' or S == 'Z' or S == 'T' or
-                S == 'F' or S == '-';
+            return S == 'X' or S == 'Z' or S == '1' or
+                S == '0' or S == '-';
         end func Is_Logic_Char
 
         func Is_Bit_Char(S : Univ_Character) -> Boolean is
@@ -121,6 +121,83 @@ exports
             return (if A == Async then B else A);
         end func Force_Dom
     end class Util
+
+    class Switch_Values is
+    exports
+        class Logic is
+            const Val : Logic_Val;
+        exports
+            op "from_univ"(Univ : Univ_Integer) -> Logic is
+                return (Val => (if Univ == 1 then #true else #false));
+            end op "from_univ"
+
+            op "from_univ"(S : Univ_Character) -> Logic is
+                case S of
+                    ['1'] => return #true;
+                    ['0'] => return #false;
+                    ['-'] => return #dont_care;
+                    ['X'] => return #x;
+                    ['Z'] => return #z;
+                end case
+            end op "from_univ"
+
+            op "from_univ"(Univ : Univ_Enumeration) -> Logic is
+                return (Val => Univ);
+            end op "from_univ" 
+
+            op "=?"(L, R : Logic) -> Ordering is
+                return R.Val =? L.Val;
+            end op "=?"
+        end class Logic
+
+        class Vec is
+            const Val : Univ_String;
+        exports
+            op "from_univ"(Univ : Univ_Integer) -> Vec is
+                return (Val => To_String(Univ));
+            end op "from_univ"
+
+            op "from_univ"(U : Univ_String) -> Vec is
+                return (Val => U);
+            end op "from_univ"
+
+            op "=?"(L, R : Vec) -> Ordering is
+                {#false}
+            end op "=?"
+        end class Vec
+
+        class IVec is
+            const Val : Univ_String;
+        exports
+            op "from_univ"(Univ : Univ_Integer) -> IVec is
+                return (Val => To_String(Univ));
+            end op "from_univ"
+
+            op "from_univ"(U : Univ_String) -> IVec is
+                return (Val => U);
+            end op "from_univ"
+
+            op "=?"(L, R : IVec) -> Ordering is
+                {#false}
+            end op "=?"
+        end class IVec
+
+        class UVec is
+            const Val : Univ_String;
+        exports
+            op "from_univ"(Univ : Univ_Integer) -> UVec is
+                return (Val => To_String(Univ));
+            end op "from_univ"
+
+            op "from_univ"(U : Univ_String) -> UVec is
+                return (Val => U);
+            end op "from_univ"
+
+            op "=?"(L, R : UVec) -> Ordering is
+                {#false}
+            end op "=?"
+        end class UVec
+    end class Switch_Values
 
     class Rtl_Bool is
         const Value : Boolean;
@@ -181,8 +258,8 @@ exports
 
         op "from_univ"(S : Univ_Character) -> Logic is
             case S of
-                ['T'] => return #true
-                ['F'] => return #false
+                ['1'] => return #true
+                ['0'] => return #false
                 ['-'] => return #dont_care
                 ['X'] => return #x
                 ['Z'] => return #z
@@ -220,6 +297,10 @@ exports
         func Sync(L : Logic<Async>) -> Logic is
             {#false}
         end func Sync
+
+        func Switch(L : Logic) -> Switch_Values::Logic is
+            {#false}
+        end func Switch
     end class Logic
 
     class Vec_Index is
@@ -280,6 +361,10 @@ exports
         func Sync(V : Vec<Size, Async>) -> Vec is
             {#false}
         end func Sync
+
+        func Switch(V : Vec) -> Switch_Values::Vec<Size> is
+            {#false}
+        end func Switch
     end class Vec
 
     class IVec is
@@ -361,6 +446,10 @@ exports
         func Sync(V : IVec<Size, Async>) -> IVec is
             {#false}
         end func Sync
+
+        func Switch(V : IVec) -> Switch_Values::IVec<Size> is
+            {#false}
+        end func Switch
 
         func Logic_Vec(V : IVec) -> Vec<Size, Dom> is
             return (Internal_Ref => 0);
@@ -446,6 +535,10 @@ exports
         func Sync(V : UVec<Size, Async>) -> UVec is
             {#false}
         end func Sync
+
+        func Switch(V : UVec) -> Switch_Values::UVec<Size> is
+            {#false}
+        end func Switch
 
         func Logic_Vec(V : UVec) -> Vec<Size, Dom> is
             return (Internal_Ref => 0);

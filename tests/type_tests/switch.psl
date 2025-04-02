@@ -1,0 +1,21 @@
+// RUN: %sailgate_typecheck
+// RUN: %sailgate_check
+
+import SailGate::Prelude::*;
+
+func Test_Invalid_Const() is
+    var A : UVec<3> := 5;
+
+    case Switch(A) of
+        [1 | 3] => null;
+        [5] => null;
+        [..] => null;
+    end case
+
+    case Switch(A) of
+        [1 | 2] => null;
+        // CHECK: Assertion failed:  {> Util::In_UBounds(Univ, Size) <}
+        [10] => null;
+        [..] => null;
+    end case
+end func Test_Invalid_Const

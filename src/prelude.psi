@@ -42,6 +42,45 @@ interface SailGate::Prelude<> is
 
     type Logic_Val is Enum<[#false, #true, #x, #z, #dont_care]>;
 
+    /// RTL types without clock domains. These types are used for case/switch
+    /// comparisons exclusively. The Rtl_Ordering gives ParaSail's case construct
+    /// issues. These types only implement univ conversions and comparison
+    interface Switch_Values<> is
+        interface Logic<> is
+            op "from_univ"(Univ : Univ_Integer
+                { Univ in 0..1 }) -> Logic;
+            op "from_univ"(S : Univ_Character
+                {Util::Is_Logic_Char(S)}) -> Logic;
+            op "from_univ"(Univ : Univ_Enumeration)
+                {Univ in Logic_Val::Range()} -> Logic;
+            op "=?"(L, R : Logic) -> Ordering;
+        end interface Logic
+
+        interface Vec<Size : Vec_Size> is
+            op "from_univ"(Univ : Univ_Integer
+                {Util::In_UBounds(Univ, Size)}) -> Vec;
+            op "from_univ"(U : Univ_String
+                {Util::Is_Vec_Str(U, Size)}) -> Vec;
+            op "=?"(L, R : Vec) -> Ordering;
+        end interface Vec
+
+        interface IVec<Size : Vec_Size> is
+            op "from_univ"(Univ : Univ_Integer
+                {Util::In_SBounds(Univ, Size)}) -> IVec;
+            op "from_univ"(U : Univ_String
+                {Util::Is_Vec_Str(U, Size)}) -> IVec;
+            op "=?"(L, R : IVec) -> Ordering;
+        end interface IVec
+
+        interface UVec<Size : Vec_Size> is
+            op "from_univ"(Univ : Univ_Integer
+                {Util::In_UBounds(Univ, Size)}) -> UVec;
+            op "from_univ"(U : Univ_String
+                {Util::Is_Vec_Str(U, Size)}) -> UVec;
+            op "=?"(L, R : UVec) -> Ordering;
+        end interface UVec
+    end interface Switch_Values
+
     /// Boolean type that is bound to a clock domain.
     /// This ensures that condition expressions do not cross
     /// clock domains
@@ -93,6 +132,7 @@ interface SailGate::Prelude<> is
 
         func Unsafe_Cast(L : OL is Logic<>) -> Logic;
         func Sync(L : Logic<Async>) -> Logic;
+        func Switch(L : Logic) -> Switch_Values::Logic;
     end interface Logic
 
     // Checked vector index
@@ -134,6 +174,7 @@ interface SailGate::Prelude<> is
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> Vec;
         func Unsafe_Cast(V : OV is Vec<>) -> Vec;
         func Sync(V : Vec<Size, Async>) -> Vec;
+        func Switch(V : Vec) -> Switch_Values::Vec<Size>;
     end interface Vec
 
     /// Base type for signed logic vectors
@@ -172,6 +213,7 @@ interface SailGate::Prelude<> is
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> IVec;
         func Unsafe_Cast(V : OV is IVec<>) -> IVec;
         func Sync(V : IVec<Size, Async>) -> IVec;
+        func Switch(V : IVec) -> Switch_Values::IVec<Size>;
         func Logic_Vec(V : IVec) -> Vec<Size, Dom>;
     end interface IVec
 
@@ -198,6 +240,7 @@ interface SailGate::Prelude<> is
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> UVec;
         func Unsafe_Cast(V : OV is UVec<>) -> UVec;
         func Sync(V : UVec<Size, Async>) -> UVec;
+        func Switch(V : UVec) -> Switch_Values::UVec<Size>;
         func Logic_Vec(V : UVec) -> Vec<Size, Dom>;
     end interface UVec
 

@@ -3,15 +3,9 @@ import SailGate::Util::*;
 import PSC::Reflection::*;
 import SailGate::IR;
 import SailGate::Prelude;
+import SailGate::Sema::Names;
 
 class SailGate::Sema::Util is
-    interface Type_Name<> is
-        const Logic := Prelude_Prefix | "Logic<";
-        const LVec := Prelude_Prefix | "Vec<";
-        const SVec := Prelude_Prefix | "IVec<";
-        const UVec := Prelude_Prefix | "UVec<";
-    end interface Type_Name
-
     /// Extracts the clock domain info from a type parameter
     func Read_Type_Dom(Info : Param_Info) -> optional IR::Domain is
         if Info.Kind != #formal_object then
@@ -113,20 +107,66 @@ exports
             return null;
         end if
 
+        var Scalar_Type : optional IR::Scalar_Type := null;
         const TN := Name(Type);
-        if Starts_With(TN, Type_Name::Logic) then
-            return Scalar_To_Rtl(Type, #logic);
+
+        if Starts_With(TN, Names::Types::Logic) then
+            Scalar_Type := #logic;
+        elsif Starts_With(TN, Names::Types::Bool) then
+            Scalar_Type := #bool;
+        end if
+
+        if Scalar_Type not null then
+            return Scalar_To_Rtl(Type, Scalar_Type);
         end if
 
         var Vec_Type : IR::Vec_Type::Type_Kind := #logic;
-        if Starts_With(TN, Type_Name::SVec) then
+        if Starts_With(TN, Names::Types::SVec) then
             Vec_Type := #int;
-        elsif Starts_With(TN, Type_Name::UVec) then
+        elsif Starts_With(TN, Names::Types::UVec) then
             Vec_Type := #uint;
-        elsif not Starts_With(TN, Type_Name::LVec) then
+        elsif not Starts_With(TN, Names::Types::LVec) then
             return null; 
         end if
 
         return Vec_To_Rtl(Type, Vec_Type);
     end func Type_To_Rtl
+
+    func Find_Tree_Source(T : Tree) -> optional Source_Position is
+        if T is null then
+            return null;
+        end if
+
+        const Tree_Source := Source_Pos(T);
+        if Tree_Source not null then
+            return Tree_Source;
+        end if
+
+        for I in 1..Num_Operands(T) forward loop
+            const Op := Nth_Operand(T, I);
+            if Op not null then
+                const Op_Source := Find_Tree_Source(Op);
+                if Op_Source not null then
+                    return Op_Source;
+                end if
+            end if
+        end loop
+    end func Find_Tree_Source
+
+    func Get_Call_Operation(T : Tree) -> optional Decl is
+        const Direct_Op := Call_Operation(T);
+        if Direct_Op not null then
+            return Direct_Op;
+        end if
+
+        const Resolved_Op := Resolved_Interp(T);
+        if Resolved_Op not null then
+            var Op := Call_Operation(Resolved_Op);
+            if Op not null then
+                return Op;
+            end if
+        end if
+
+        return null;
+    end func Get_Call_Operation
 end class SailGate::Sema::Util

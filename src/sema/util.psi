@@ -20,4 +20,10 @@ interface SailGate::Sema::Util<> is
     /// Creates IR type from RTL type descriptor. Returns null for
     /// incorrect types
     func Type_To_Rtl(Type : Type_Descriptor) -> optional IR::Full_Type;
+
+    /// Finds leftmost source location for a tree node
+    func Find_Tree_Source(T : Tree) -> optional Source_Position;
+
+    /// Gets call operation. Checks call tree for chosen interp
+    func Get_Call_Operation(T : Tree) -> optional Decl;
 end interface SailGate::Sema::Util

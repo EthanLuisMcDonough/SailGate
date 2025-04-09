@@ -13,4 +13,100 @@ exports
             end if
         end loop
     end func Index_Of
+
+    class Either is
+        abstract interface Either_Internal_Base<> is
+            func Is_Left(E : Either_Internal_Base) -> Boolean;
+            func Get_Left(E : Either_Internal_Base) -> L;
+            func Get_Right(E : Either_Internal_Base) -> R;
+        end interface Either_Internal_Base
+
+        interface Internal_Left<> implements Either_Internal_Base<> is
+            func Is_Left(L : Internal_Left) -> Boolean;
+            func Get_Left(L : Internal_Left) -> L;
+            func Get_Right(L : Internal_Left) -> R;
+        end interface Internal_Left
+
+        interface Internal_Right<> implements Either_Internal_Base<> is
+            func Is_Left(R : Internal_Right) -> Boolean;
+            func Get_Left(R : Internal_Right) -> L;
+            func Get_Right(R : Internal_Right) -> R;
+        end interface Internal_Right
+
+        class Internal_Left is
+            var Left_Val : L;
+        exports
+            func Is_Left(L : Internal_Left) -> Boolean is
+                return #true;
+            end func Is_Left
+
+            func Get_Left(L : Internal_Left) -> L is
+                return L.Left_Val;
+            end func Get_Left
+
+            func Get_Right(L : Internal_Left) -> R is
+                {#false}
+            end func Get_Right
+        end class Internal_Left
+
+        class Internal_Right is
+            var Right_Val : R;
+        exports
+            func Is_Left(R : Internal_Right) -> Boolean is
+                return #false;
+            end func Is_Left
+
+            func Get_Left(R : Internal_Right) -> L is
+                {#false}
+            end func Get_Left
+
+            func Get_Right(R : Internal_Right) -> R is
+                return R.Right_Val;
+            end func Get_Right
+        end class Internal_Right
+
+        var Value : Either_Internal_Base+;
+    exports
+        func Left(Val : L) -> Either is
+            return (Value => Internal_Left::(Left_Val => Val), Kind => #left);
+        end func Left
+
+        func Right(Val : R) -> Either is
+            return (Value => Internal_Right::(Right_Val => Val), Kind => #right);
+        end func Right
+
+        func Is_Left(E : Either) -> Boolean is
+            return E.Kind == #left;
+        end func Is_Left
+
+        func Is_Right(E : Either) -> Boolean is
+            return E.Kind == #right;
+        end func Is_Right
+
+        func Get_Left(E : Either) -> optional L is
+            if Is_Left(E) then
+                return Unwrap_Left(E);
+            else
+                return null;
+            end if
+        end func Get_Left
+
+        func Get_Right(E : Either) -> optional R is
+            if Is_Right(E) then
+                return Unwrap_Right(E);
+            else
+                return null;
+            end if
+        end func Get_Right
+
+        func Unwrap_Left(E : Either) -> L is
+            {> Is_Left(E) <}
+            return Get_Left(E.Value);
+        end func Unwrap_Left
+
+        func Unwrap_Right(E : Either) -> R is
+            {> Is_Right(E) <}
+            return Get_Right(E.Value);
+        end func Unwrap_Right
+    end class Either
 end class SailGate::Util

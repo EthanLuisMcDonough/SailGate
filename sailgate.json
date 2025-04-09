@@ -8,6 +8,7 @@
         "builder/builder.psi",
         "builder/vhdl.psi",
         "sema/sema.psi",
+        "sema/names.psi",
         "sema/util.psi",
         "sema/debug.psi",
         "sema/validator.psi",

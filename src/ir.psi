@@ -2,15 +2,24 @@ import PSC::Reflection;
 import SailGate::Prelude;
 
 interface SailGate::IR<> is
-    type Scalar_Type is Enum<[#logic]>;
+    type Scalar_Type is Enum<[#logic, #bool]>;
+
+    interface Alignment<> is
+        const Dir : Prelude::Vec_Dir;
+        const Offset : Prelude::Natural;
+
+        const Default := Alignment::(Dir => #default, Offset => 0);
+    end interface Alignment
 
     interface Vec_Type<> is
         type Type_Kind is Enum<[#logic, #int, #uint]>;
 
         const Kind : Type_Kind;
         const Size : Univ_Integer;
+        const Align : Alignment;
 
         op "=?"(L, R : Vec_Type) -> Ordering;
+        func To_String(V : Vec_Type) -> Univ_String;
     end interface Vec_Type
 
     interface Type<> is
@@ -18,16 +27,20 @@ interface SailGate::IR<> is
         const Kind : Type_Kind;
 
         func Create(S : Scalar_Type) -> Type;
-        func Create(K : Vec_Type::Type_Kind;
-            S : Univ_Integer {S > 0}) -> Type;
+        func Create(K : Vec_Type::Type_Kind; S : Univ_Integer {S > 0};
+            A : Alignment := Alignment::Default) -> Type;
 
         func Get_Scalar(T : Type {T.Kind == #scalar}) -> Scalar_Type;
         func Get_Vec(T : Type {T.Kind == #vec}) -> Vec_Type;
         func To_String(T : Type) -> Univ_String;
 
+        func Valid_Field_Type(T : Type) -> Boolean;
         op "=?"(L, R : Type) -> Ordering;
     end interface Type
 
+    /// Our own version of domain for internal use
+    /// The one in prelude is to be used by the end user, so
+    /// it has some additional encapsulation we don't need here
     interface Domain<> is
         const Kind : Prelude::Domain_Kind;
         const Name : Univ_Enumeration;
@@ -35,6 +48,7 @@ interface SailGate::IR<> is
         func To_String(D : Domain) -> Univ_String;
     end interface Domain
 
+    /// RTL type qualified with clock domain
     interface Full_Type<> is
         const Dom : Domain;
         const Val : Type;

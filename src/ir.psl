@@ -8,6 +8,11 @@ exports
             end if
             return #unordered;
         end op "=?"
+
+        func To_String(V : Vec_Type) -> Univ_String is
+            return To_String(V.Kind) | "(" | V.Size | ", " |
+                To_String(V.Align.Dir) | ", " | V.Align.Offset | ")";
+        end func To_String
     end class Vec_Type
 
     class Type is
@@ -18,9 +23,9 @@ exports
             return (Kind => #scalar, Scalar => S, Vec => null);
         end func Create
 
-        func Create(K : Vec_Type::Type_Kind; S : Univ_Integer) -> Type is
+        func Create(K : Vec_Type::Type_Kind; S : Univ_Integer; A : Alignment) -> Type is
             return (Kind => #vec, Scalar => null,
-                Vec => (Kind => K, Size => S));
+                Vec => (Kind => K, Size => S, Align => A));
         end func Create
 
         func Get_Scalar(T : Type) -> Scalar_Type is
@@ -34,9 +39,7 @@ exports
         func To_String(T : Type) -> Univ_String is
             case T.Kind of
                 [#scalar] => return To_String(Get_Scalar(T));
-                [#vec] => 
-                    const V := Get_Vec(T);
-                    return To_String(V.Kind) | "(" | V.Size | ")";
+                [#vec] => return To_String(Get_Vec(T));
             end case
         end func To_String
 
@@ -49,6 +52,13 @@ exports
                 [#vec] => return (Get_Vec(L) =? Get_Vec(R));
             end case
         end op "=?"
+
+        func Valid_Field_Type(T : Type) -> Boolean is
+            case T.Kind of
+                [#scalar] => return Get_Scalar(T) == #logic;
+                [#vec] => return #true;
+            end case
+        end func Valid_Field_Type
     end class Type
 
     class Domain is

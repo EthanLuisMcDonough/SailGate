@@ -8,4 +8,7 @@ interface SailGate::Sema::Debug<> is
 
     /// Dumps type descriptor
     func Dump(T : Type_Descriptor);
+
+    /// Dumps tree
+    func Dump(T : Tree; Lvl : Univ_Integer := 0);
 end interface SailGate::Sema::Debug

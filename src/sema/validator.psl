@@ -3,12 +3,9 @@ import SailGate::*;
 import SailGate::Util::*;
 import SailGate::IR;
 import SailGate::Sema;
+import SailGate::Sema::Names;
 
 class SailGate::Sema::Sema_Error is
-
-    abstract interface Domain_State<> is
-    end interface Domain_State
-
 exports
     func Dump(E : Sema_Error) is
         if E.Source not null then
@@ -21,56 +18,102 @@ exports
             [#invalid_field_type] => Println("Invalid field type. Field must be a realized RTL type");
             [#mutable_field] => Println("Invalid field mutability. Field must be constant");
             [#ref_field_type] => Println("Invalid field type. Field cannot be ref");
+            [#field_init_val] => Println("Entity field cannot have initial value");
+            [#field_non_vec_align] => Println("Only vector fields can have align clauses");
             [#invalid_inst] => Println("Invalid instruction");
+            [#invalid_anno] => Println("Invalid align clause");
+            [#non_const_val] => Println("Value must be a compile-time known literal");
             [#invalid_run_return] => Println("Invalid \"Run\" method. Run must return the entity type")
         end case
     end func Dump
 end class SailGate::Sema::Sema_Error
 
 class SailGate::Sema::Validator is
-    interface Type_Name<> is
-        const Logic := Prelude_Prefix | "Logic<";
-        const LVec := Prelude_Prefix | "Vec<";
-        const SVec := Prelude_Prefix | "IVec<";
-        const UVec := Prelude_Prefix | "UVec<";
-    end interface Type_Name
+    /// Read alignment clause from annotation metadata
+    type Align_Result is Either<IR::Alignment, Sema_Error>;
+    func Read_Alignment(D : Reflection::Tree {Kind(D) == #annotation}) -> Align_Result is
+        const Anno_Source := Sema::Util::Find_Tree_Source(D);
+        const Anno_Err := Align_Result::Right((
+            Kind => #invalid_anno, Source => Anno_Source));
 
-    func Check(ref var Ports : IR::Entity::Port_Def;
-            Comp : Reflection::Component_Info) -> optional Sema_Error is
-        const Comp_Decl := Comp.Component_Decl;
-        const Comp_Source := Decl_Source_Pos(Comp_Decl);
-
-        if Comp.Is_Var then
-            return (Kind => #mutable_field,
-                Source => Comp_Source);
+        // Find function call
+        if Num_Operands(D) != 1 then
+            return Anno_Err;
         end if
 
-        const Rtl_Type := Sema::Util::Type_To_Rtl(Comp.Type_Desc);
-        if Rtl_Type is null then
-            return (Kind => #invalid_field_type,
-                Source => Comp_Source);
+        const Invoc := Nth_Operand(D, 1);
+        if Invoc is null or else Kind(Invoc) != #invocation then
+            return Anno_Err;
         end if
 
-        Ports |= (Key => Id(Comp_Decl), Value => Rtl_Type);
-    end func Check
+        // Makes sure we're calling the right function
+        const Call := Sema::Util::Get_Call_Operation(Invoc);
+        if Call is null or else
+                Sema::Util::Get_Decl_Name(Call) != Names::Functions::Align then
+            return Anno_Err;
+        end if
 
-    /// Ensures that all fields inside a type are constant RTL types.
-    /// Populates port map with field names and types
-    func Check(ref var Ports : IR::Entity::Port_Def;
-            T : Reflection::Type_Descriptor) -> optional Sema_Error is
-        const Comps := Components(T);
-        for I in 1..|Comps| forward loop
-            const Comp := Comps[I];
-            const Err := Check(Ports, Comp);
-            if Err not null then
-                return Err;
+        var Dir : Prelude::Vec_Dir := #default;
+        var Offset : Prelude::Natural := 0;
+
+        // Loop through call operands and find 
+        for I in 2..Num_Operands(Invoc) forward loop
+            var Argument := Nth_Operand(Invoc, I);
+            if Kind(Argument) == #reference then
+                Argument := Nth_Operand(Argument,
+                    Reflection::Tree::Reference_Referent_Op);
             end if
-        end loop
-    end func Check
 
-    func Routine_Is_Run(R : Reflection::Routine) -> Boolean is
-        return R not null and then Name(R) == "Run" and then |Parameters(R)| == 2;
-    end func Routine_Is_Run
+            const Arg_Source := Sema::Util::Find_Tree_Source(D);
+            if Kind(Argument) != #identifier then
+                return Align_Result::Right((
+                    Kind => #non_const_val, Source => Arg_Source));
+            end if
+
+            const Lit_Val := Identifier(Argument);
+            case Lit_Kind(Argument) of
+                [#integer_literal] =>
+                    Offset := Univ_Integer::From_String(Lit_Val);
+                [#enum_literal] =>
+                    case Lit_Val of
+                        ["#default"] =>
+                            Dir := #default;
+                        ["#up"] =>
+                            Dir := #up;
+                        ["#down"] =>
+                            Dir := #down;
+                    end case
+                [..] =>
+                    return Anno_Err;
+            end case
+        end loop
+
+        return Align_Result::Left((Dir => Dir, Offset => Offset));
+    end func Read_Alignment
+
+    /// Read alignment and add it to type
+    func Add_Alignment(var T : IR::Full_Type; Align_Tree : optional Reflection::Tree)
+            -> optional Sema_Error is
+        if Align_Tree is null then
+            return;
+        end if
+
+        const Align_Source := Sema::Util::Find_Tree_Source(Align_Tree);
+        if T.Val.Kind != #vec then
+            return (Kind => #field_non_vec_align, Source => Align_Source);
+        end if
+
+        const Alignment_Result := Read_Alignment(Align_Tree);
+        if Is_Right(Alignment_Result) then
+            return Get_Right(Alignment_Result);
+        end if
+
+        const Vec_Type := Get_Vec(T.Val);
+        const Alignment := Get_Left(Alignment_Result);
+
+        const New_Type := IR::Type::Create(Vec_Type.Kind, Vec_Type.Size, Alignment);
+        T := (Dom => T.Dom, Val => New_Type);
+    end func Add_Alignment
 
     /// Traverses Decl AST and inserts valid entity rep into the entity map
     func Check(var V : Validator; D : Extractor::Raw_Entity_Data) -> optional Sema_Error is
@@ -85,6 +128,7 @@ class SailGate::Sema::Validator is
         for I in 1..|Run_Params| forward loop
             const P := Run_Params[I];
             const P_Decl := P.Param_Decl;
+            const P_Tree := Tree_Of(P_Decl);
             const P_Source := Decl_Source_Pos(P_Decl);
 
             if P.Is_Operation_Output then
@@ -104,10 +148,18 @@ class SailGate::Sema::Validator is
                 end if
 
                 const Type_Desc := Type_Desc_At_Locator(P.Type_Info);
-                const Rtl_Type := Sema::Util::Type_To_Rtl(Type_Desc);
-                if P.Is_Optional or else Rtl_Type is null then
+                var Rtl_Type := Sema::Util::Type_To_Rtl(Type_Desc);
+                if P.Is_Optional or else Rtl_Type is null or else
+                        not Valid_Field_Type(Rtl_Type.Val) then
                     return (Kind => #invalid_field_type,
                         Source => P_Source);
+                end if
+
+                // Parse align clause
+                const Align_Stmt := Pre_Annotation(P_Tree);
+                const Align_Err := Add_Alignment(Rtl_Type, Align_Stmt);
+                if Align_Err not null then
+                    return Align_Err;
                 end if
 
                 Inputs |= (Key => Id(P_Decl), Value => Rtl_Type);
@@ -115,76 +167,46 @@ class SailGate::Sema::Validator is
         end loop
 
         // Gather outputs
+        // Each output should be an obj_decl tree with a null value
         const Comp := Components(D.Desc);
         var Outputs : IR::Entity::Port_Def := [];
         for I in 1..|Comp| forward loop
-            const Rtl_Type := Sema::Util::Type_To_Rtl(Comp[I].Type_Desc);
+            var Rtl_Type := Sema::Util::Type_To_Rtl(Comp[I].Type_Desc);
             const Comp_Decl := Comp[I].Component_Decl;
             const Comp_Source := Decl_Source_Pos(Comp_Decl);
+            const Comp_Tree := Tree_Of(Comp_Decl);
+
+            {Kind(Comp_Tree) == #obj_decl}
+
+            if Nth_Operand(Comp_Tree, Reflection::Tree::Obj_Decl_Value_Op) not null then
+                return (Kind => #field_init_val,
+                    Source => Comp_Source);
+            end if
+
+            // Parse align clause
+            const Align_Stmt := Pre_Annotation(Comp_Tree);
+            const Align_Err := Add_Alignment(Rtl_Type, Align_Stmt);
+            if Align_Err not null then
+                return Align_Err;
+            end if
 
             if Comp[I].Is_By_Ref then
                 return (Kind => #ref_field_type,
                     Source => Comp_Source);
             end if
 
-            if Rtl_Type is null then
+            if Comp[I].Is_Var then
+                return (Kind => #mutable_field,
+                    Source => Comp_Source);
+            end if
+
+            if Rtl_Type is null or else not Valid_Field_Type(Rtl_Type.Val) then
                 return (Kind => #invalid_field_type,
                     Source => Comp_Source);
             end if
 
             Outputs |= (Key => Id(Comp_Decl), Value => Rtl_Type);
         end loop
-
-        // const DR := Decl_Region(D);
-        // {> DR not null <}
-
-        // // Get Entity type
-        // const Entity_Type_Decl := DR.Nth_Item(1);
-        // {> Kind(Entity_Type_Decl) == #type <}
-        // const Entity_Type := Descriptor_For_Type(Entity_Type_Decl);
-
-        // // Check field types types
-        // var Inputs : IR::Entity::Port_Def := [];
-        // const Input_Err := Check(Inputs, Entity_Type);
-        // if Input_Err not null then
-        //     return Input_Err;
-        // end if
-
-        // // Find "Run" implementation
-        // var Behavior : Reflection::Routine := null;
-        // for I in 2..Num_Items(DR) forward loop
-        //     const Next_Item := DR.Nth_Item(I);
-        //     if Kind(Next_Item) == #operation then
-        //         const R := Routine_For_Operation(Next_Item);
-        //         if not Routine_Is_Run(R) then
-        //             continue loop;
-        //         end if
-        //         Behavior := R;
-        //     end if
-        // end loop
-
-        // if Behavior is null then
-        //     return (Kind => #no_behavior, Source => Decl_Source_Pos(D));
-        // end if
-
-        // const Run_Params := Parameters(Behavior);
-        // var Output_Type : Reflection::Type_Descriptor := null;
-        // for I in 1..|Run_Params| forward loop
-        //     if Run_Params[I].Is_Operation_Output then
-        //         const Base_Name := Util::Base_Name(Run_Params[I].Type_Name);
-        //         const Base_Decl := Ex.Outputs[Base_Name];
-        //         const Type_Decl := Util::First_In_Region(Decl_Region(Base_Decl), #type);
-        //         Output_Type := Descriptor_For_Type(Type_Decl);
-        //     end if
-        // end loop
-
-        // {>*"No output found"* Output_Type not null<}
-        // // Check output
-        // var Outputs : IR::Entity::Port_Def := [];
-        // const Output_Err := Check(Outputs, Output_Type);
-        // if Output_Err not null then
-        //     return Output_Err;
-        // end if
 
         const Entity : IR::Entity := (
             Inputs => Inputs, Outputs => Outputs,

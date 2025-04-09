@@ -3,4 +3,20 @@ interface SailGate::Util<> is
     func Starts_With(Str : Univ_String; Prefix : Univ_String) -> Boolean;
     func Index_Of(Str : Univ_String; C : Univ_Character;
         Start : Univ_Integer := 1) -> optional Univ_Integer;
+
+    type Either_Kind is Enum<[#left, #right]>;
+    interface Either<L is Assignable<>; R is Assignable<>> is
+        const Kind : Either_Kind;
+
+        func Left(Val : L) -> Either;
+        func Right(Val : R) -> Either;
+
+        func Is_Left(E : Either) -> Boolean;
+        func Is_Right(E : Either) -> Boolean;
+
+        func Get_Left(E : Either) -> optional L;
+        func Get_Right(E : Either) -> optional R;
+        func Unwrap_Left(E : Either) -> L;
+        func Unwrap_Right(E : Either) -> R;
+    end interface Either
 end interface SailGate::Util

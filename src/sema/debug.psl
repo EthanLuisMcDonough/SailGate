@@ -53,4 +53,53 @@ exports
             Println("   - " | Info.Name);
         end loop
     end func Dump
+
+    func Dump(T : Tree; Lvl : Univ_Integer := 0) is
+        if T is null then
+            return;
+        end if
+
+        var Ln := "   " * Lvl | To_String(Kind(T));
+
+        const Operation := Sema::Util::Get_Call_Operation(T);
+        if Operation not null then
+            Ln |= "(" | Sema::Util::Get_Decl_Name(Operation) | ")";
+        end if
+
+        var Dcl := Decl_Of(T);
+        if Dcl not null then
+            Ln |= "(" | To_String(Kind(Dcl)) | ")";
+        end if
+
+        if Pre_Annotation(T) not null then
+            Ln |= "(has_pre)";
+        end if
+
+        if Post_Annotation(T) not null then
+            Ln |= "(has_post)";
+        end if
+
+        if Kind(T) == #identifier then
+            Ln |= "(" | Identifier(T) | ")";
+        end if
+
+        var Typ := Resolved_Type(T);
+        if Typ not null then
+            Ln |= "(" | Name(Typ) | ")";
+        end if
+
+        const Loc := Sema::Util::Find_Tree_Source(T);
+        if Loc not null then
+            Ln |= " : " | To_String(Loc)
+        end if
+
+        Println(Ln);
+
+        for I in 1..Num_Operands(T) forward loop
+            const Op := Nth_Operand(T, I);
+            if Op not null then
+                Dump(Op, Lvl + 1);
+            end if
+        end loop
+    end func Dump
 end class SailGate::Sema::Debug

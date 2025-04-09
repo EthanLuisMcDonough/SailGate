@@ -141,6 +141,9 @@ interface SailGate::Prelude<> is
         op "from_univ"(U : Univ_Integer {U < Size}) -> Vec_Index;
     end interface Vec_Index
 
+    type Vec_Dir is Enum<[#default, #up, #down]>;
+    func Align(Dir : Vec_Dir := #default; Offset : Natural := 0) -> Boolean;
+
     /// Base type for vector RTL types
     abstract interface Vec_Rtl_Type<Size : Vec_Size; Dom : Domain; T is Scalar_Type<Dom>>
             extends Rtl_Type<Dom> is

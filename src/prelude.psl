@@ -80,6 +80,10 @@ exports
         end func Falling
     end class Domain
 
+    func Align(Dir : Vec_Dir; Offset : Natural) -> Boolean is
+        return #true;
+    end func Align
+
     /// Implementations for utility types and functions
     class Util is
     exports

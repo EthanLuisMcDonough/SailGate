@@ -1,0 +1,15 @@
+interface SailGate::Sema::Names<> is
+    const Prefix := "SailGate::Prelude::";
+
+    interface Types<> is
+        const Bool := Prefix | "Rtl_Bool<";
+        const Logic := Prefix | "Logic<";
+        const LVec := Prefix | "Vec<";
+        const SVec := Prefix | "IVec<";
+        const UVec := Prefix | "UVec<";
+    end interface Types
+
+    interface Functions<> is
+        const Align := Prefix | "Align";
+    end interface Functions
+end interface SailGate::Sema::Names

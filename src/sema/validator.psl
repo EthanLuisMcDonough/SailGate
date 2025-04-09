@@ -30,10 +30,10 @@ end class SailGate::Sema::Sema_Error
 
 class SailGate::Sema::Validator is
     /// Read alignment clause from annotation metadata
-    type Align_Result is Either<IR::Alignment, Sema_Error>;
+    type Align_Result is Result<IR::Alignment, Sema_Error>;
     func Read_Alignment(D : Reflection::Tree {Kind(D) == #annotation}) -> Align_Result is
         const Anno_Source := Sema::Util::Find_Tree_Source(D);
-        const Anno_Err := Align_Result::Right((
+        const Anno_Err := Align_Result::Err((
             Kind => #invalid_anno, Source => Anno_Source));
 
         // Find function call
@@ -66,7 +66,7 @@ class SailGate::Sema::Validator is
 
             const Arg_Source := Sema::Util::Find_Tree_Source(D);
             if Kind(Argument) != #identifier then
-                return Align_Result::Right((
+                return Align_Result::Err((
                     Kind => #non_const_val, Source => Arg_Source));
             end if
 
@@ -88,7 +88,7 @@ class SailGate::Sema::Validator is
             end case
         end loop
 
-        return Align_Result::Left((Dir => Dir, Offset => Offset));
+        return Align_Result::Ok((Dir => Dir, Offset => Offset));
     end func Read_Alignment
 
     /// Read alignment and add it to type
@@ -104,12 +104,12 @@ class SailGate::Sema::Validator is
         end if
 
         const Alignment_Result := Read_Alignment(Align_Tree);
-        if Is_Right(Alignment_Result) then
-            return Get_Right(Alignment_Result);
+        if Is_Err(Alignment_Result) then
+            return Unwrap_Err(Alignment_Result);
         end if
 
         const Vec_Type := Get_Vec(T.Val);
-        const Alignment := Get_Left(Alignment_Result);
+        const Alignment := Ok(Alignment_Result);
 
         const New_Type := IR::Type::Create(Vec_Type.Kind, Vec_Type.Size, Alignment);
         T := (Dom => T.Dom, Val => New_Type);

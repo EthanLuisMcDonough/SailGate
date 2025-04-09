@@ -19,4 +19,19 @@ interface SailGate::Util<> is
         func Unwrap_Left(E : Either) -> L;
         func Unwrap_Right(E : Either) -> R;
     end interface Either
+
+    interface Result<T is Assignable<>; E is Assignable<>> is
+        func Ok(Val : T) -> Result;
+        func Err(Val : E) -> Result;
+
+        func Is_Ok(R : Result) -> Boolean;
+        func Is_Err(R : Result) -> Boolean;
+        op "to_bool"(R : Result) -> Boolean is Is_Ok;
+
+        func Ok(R : Result) -> optional T;
+        func Err(R : Result) -> optional E;
+
+        func Unwrap(R : Result) -> T;
+        func Unwrap_Err(R : Result) -> E;
+    end interface Result
 end interface SailGate::Util

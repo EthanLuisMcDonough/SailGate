@@ -109,4 +109,41 @@ exports
             return Get_Right(E.Value);
         end func Unwrap_Right
     end class Either
+
+    class Result is
+        type Internal_Either is Either<T, E>;
+        const Val : Internal_Either;
+    exports
+        func Ok(Val : T) -> Result is
+            return (Val => Internal_Either::Left(Val));
+        end func Ok
+
+        func Err(Val : E) -> Result is
+            return (Val => Internal_Either::Right(Val));
+        end func Err
+
+        func Is_Ok(R : Result) -> Boolean is
+            return Is_Left(R.Val);
+        end func Is_Ok
+
+        func Is_Err(R : Result) -> Boolean is
+            return Is_Right(R.Val);
+        end func Is_Err
+
+        func Ok(R : Result) -> optional T is
+            return Get_Left(R.Val);
+        end func Ok
+
+        func Err(R : Result) -> optional E is
+            return Get_Right(R.Val);
+        end func Err
+
+        func Unwrap(R : Result) -> T is
+            return Unwrap_Left(R.Val);
+        end func Unwrap
+
+        func Unwrap_Err(R : Result) -> E is
+            return Unwrap_Right(R.Val);
+        end func Unwrap_Err
+    end class Result
 end class SailGate::Util

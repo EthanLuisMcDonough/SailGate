@@ -294,6 +294,10 @@ exports
             {#false}
         end op "=?"
 
+        op "|"(L, R : Logic) -> Vec<2, Dom> is
+            {#false}
+        end op "|"
+
         func Unsafe_Cast(L : OL is Logic<>) -> Logic is
             {#false}
         end func Unsafe_Cast
@@ -355,6 +359,14 @@ exports
 
         op "|"(L : Vec; R : OV is Vec<>) -> (Result_Vec is Vec<Size + OV::Size,
                 Util::Force_Dom(Dom, OV::Dom)>) is
+            {#false}
+        end op "|"
+
+        op "|"(L : Vec; R : Logic<Dom>) -> (Result_Vec is Vec<Size + 1, Dom>) is
+            {#false}
+        end op "|"
+
+        op "|"(L : Logic<Dom>; R : Vec) -> (Result_Vec is Vec<Size + 1, Dom>) is
             {#false}
         end op "|"
 
@@ -440,6 +452,14 @@ exports
 
         op "|"(L : IVec; R : OV is IVec<>) -> (Result_Vec is IVec<Size + OV::Size,
                 Util::Force_Dom(Dom, OV::Dom)>) is
+            {#false}
+        end op "|"
+
+        op "|"(L : IVec; R : Logic<Dom>) -> (Result_Vec is IVec<Size + 1, Dom>) is
+            {#false}
+        end op "|"
+
+        op "|"(L : Logic<Dom>; R : IVec) -> (Result_Vec is IVec<Size + 1, Dom>) is
             {#false}
         end op "|"
 
@@ -529,6 +549,14 @@ exports
 
         op "|"(L : UVec; R : OV is UVec<>) -> (Result_Vec is UVec<Size + OV::Size,
                 Util::Force_Dom(Dom, OV::Dom)>) is
+            {#false}
+        end op "|"
+
+        op "|"(L : UVec; R : Logic<Dom>) -> (Result_Vec is UVec<Size + 1, Dom>) is
+            {#false}
+        end op "|"
+
+        op "|"(L : Logic<Dom>; R : UVec) -> (Result_Vec is UVec<Size + 1, Dom>) is
             {#false}
         end op "|"
 

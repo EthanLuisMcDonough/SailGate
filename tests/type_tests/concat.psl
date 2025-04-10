@@ -4,10 +4,11 @@
 import SailGate::Prelude::*;
 
 func Concat_Test() is
+    var L : Logic := '1';
     var A : Vec<4> := 3;
-    var B : Vec<2> := 1;
+    var B : Vec<2> := '0' | L;
     var C : Vec<6> := A | B;
-    var D : Vec<3> := B | Vec::<1>::"1";
+    var D : Vec<3> := B | '1';
     var E : Vec<10> := B | Range::<4, 1>::Slice(C) | A;
     // CHECK: Error: (Prelude<>::)Vec<{{.*}}> does not match (Prelude<>::)Vec<5>
     var F : Vec<5> := A | B;

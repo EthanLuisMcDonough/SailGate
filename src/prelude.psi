@@ -129,6 +129,7 @@ interface SailGate::Prelude<> is
         op "or"(Left, R : Logic) -> Logic;
         op "xor"(Left, R : Logic) -> Logic;
         op "=?"(L, R : Logic) -> Rtl_Ordering<Dom>;
+        op "|"(L, R : Logic) -> Vec<2, Dom>;
 
         func Unsafe_Cast(L : OL is Logic<>) -> Logic;
         func Sync(L : Logic<Async>) -> Logic;
@@ -173,6 +174,8 @@ interface SailGate::Prelude<> is
         op "var_indexing"(ref var M : Vec; Key : Vec_Index<Size>) -> ref var Logic<Dom>;
         op "|"(L : Vec; R : OV is Vec<>) ->
             (Result_Vec is Vec<Size + OV::Size, Util::Force_Dom(Dom, OV::Dom)>);
+        op "|"(L : Vec; R : Logic<Dom>) -> (Result_Vec is Vec<Size + 1, Dom>);
+        op "|"(L : Logic<Dom>; R : Vec) -> (Result_Vec is Vec<Size + 1, Dom>);
         op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, Size)}) -> Vec;
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> Vec;
         func Unsafe_Cast(V : OV is Vec<>) -> Vec;
@@ -205,6 +208,8 @@ interface SailGate::Prelude<> is
         op "var_indexing"(ref var M : IVec; Key : Vec_Index<Size>) -> ref var Logic<Dom>;
         op "|"(L : IVec; R : OV is IVec<>) ->
             (Result_Vec is IVec<Size + OV::Size, Util::Force_Dom(Dom, OV::Dom)>);
+        op "|"(L : IVec; R : Logic<Dom>) -> (Result_Vec is IVec<Size + 1, Dom>);
+        op "|"(L : Logic<Dom>; R : IVec) -> (Result_Vec is IVec<Size + 1, Dom>);
         op ">>"(L, R : IVec) -> IVec;
         op "<<"(L, R : IVec) -> IVec;
         op "+"(L, R : IVec) -> IVec;
@@ -232,6 +237,8 @@ interface SailGate::Prelude<> is
         op "var_indexing"(ref var M : UVec; Key : Vec_Index<Size>) -> ref var Logic<Dom>;
         op "|"(L : UVec; R : OV is UVec<>) ->
             (Result_Vec is UVec<Size + OV::Size, Util::Force_Dom(Dom, OV::Dom)>);
+        op "|"(L : UVec; R : Logic<Dom>) -> (Result_Vec is UVec<Size + 1, Dom>);
+        op "|"(L : Logic<Dom>; R : UVec) -> (Result_Vec is UVec<Size + 1, Dom>);
         op ">>"(L, R : UVec) -> UVec;
         op "<<"(L, R : UVec) -> UVec;
         op "+"(L, R : UVec) -> UVec;

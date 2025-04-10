@@ -1,0 +1,22 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+import *, SailGate::Builder::VHDL::*;
+
+func Test() is
+    var A_Type : Type+ := Vector_Type::Create(#logic, 3..0);
+    var A := Register::Create("A", A_Type, Literal::Vec("1001", #logic));
+    var A_Ref := Ref(A);
+
+    var B := Vec_Conversion::Create(A_Ref, #int);
+    // CHECK: SIGNED(A)
+    Println(Gen_Expr(B));
+
+    var C := Vec_Conversion::Create(A_Ref, #uint);
+    // CHECK: UNSIGNED(A)
+    Println(Gen_Expr(C));
+
+    var D := Vec_Conversion::Create(A_Ref, #logic);
+    // CHECK: Assertion failed:  {> Type_Id(Get_Type(Value)) != To_Type <}
+    Println(Gen_Expr(D));
+end func Test

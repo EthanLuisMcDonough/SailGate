@@ -206,6 +206,18 @@ interface SailGate::Builder::VHDL<> is
         func Is_Static(ref B : Binary) -> Boolean;
     end interface Binary
 
+    /// Vector type conversion
+    interface Vec_Conversion<> implements Expression<> is
+        func Create(Value : Expression+ {Readable(Value)
+            and then Range(Get_Type(Value)) not null};
+            To_Type : Vec_Type_Kind {Type_Id(Get_Type(Value))
+                != To_Type}) -> Vec_Conversion;
+        func Gen_Expr(ref V : Vec_Conversion) -> Univ_String;
+        func Get_Type(ref V : Vec_Conversion) -> Type+;
+        func Access(ref V : Vec_Conversion) -> Access_Kind;
+        func Is_Static(ref V : Vec_Conversion) -> Boolean;
+    end interface Vec_Conversion
+
     /// Vector index access
     interface Index_Access<> implements Expression<> is
         func Create(E : Expression+ {Supports_Special(Get_Type(E), #index)};

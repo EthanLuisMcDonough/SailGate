@@ -181,6 +181,8 @@ interface SailGate::Prelude<> is
         func Unsafe_Cast(V : OV is Vec<>) -> Vec;
         func Sync(V : Vec<Size, Async>) -> Vec;
         func Switch(V : Vec) -> Switch_Values::Vec<Size>;
+        func To_IVec(V : Vec) -> IVec<Size, Dom>;
+        func To_UVec(V : Vec) -> UVec<Size, Dom>;
     end interface Vec
 
     /// Base type for signed logic vectors

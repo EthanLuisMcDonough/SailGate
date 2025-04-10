@@ -515,6 +515,31 @@ exports
         end func Is_Static
     end class Binary
 
+    class Vec_Conversion is
+        var Val : Expression+;
+        const To_Type : Vec_Type_Kind;
+    exports
+        func Create(Value : Expression+; To_Type : Vec_Type_Kind) -> Vec_Conversion is
+            return (Val => Value, To_Type => To_Type);
+        end func Create
+
+        func Gen_Expr(ref V : Vec_Conversion) -> Univ_String is
+            return Gen_Name(V.To_Type) | Paren(Gen_Expr(V.Val));
+        end func Gen_Expr
+
+        func Get_Type(ref V : Vec_Conversion) -> Type+ is
+            return Vector_Type::Create(V.To_Type, Range(Get_Type(V.Val)));
+        end func Get_Type
+
+        func Access(ref V : Vec_Conversion) -> Access_Kind is
+            return Access(V.Val);
+        end func Access
+
+        func Is_Static(ref V : Vec_Conversion) -> Boolean is
+            return #false;
+        end func Is_Static
+    end class Vec_Conversion
+
     class Index_Access is
         var Value : Expression+;
         const Index : Univ_Integer;

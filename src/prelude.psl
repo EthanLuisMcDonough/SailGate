@@ -381,6 +381,14 @@ exports
         func Switch(V : Vec) -> Switch_Values::Vec<Size> is
             {#false}
         end func Switch
+
+        func To_IVec(V : Vec) -> IVec<Size, Dom> is
+            {#false}
+        end func To_IVec
+
+        func To_UVec(V : Vec) -> UVec<Size, Dom> is
+            {#false}
+        end func To_UVec
     end class Vec
 
     class IVec is

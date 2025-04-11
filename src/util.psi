@@ -1,8 +1,10 @@
 interface SailGate::Util<> is
-    const Prelude_Prefix := "SailGate::Prelude::";
     func Starts_With(Str : Univ_String; Prefix : Univ_String) -> Boolean;
+
     func Index_Of(Str : Univ_String; C : Univ_Character;
         Start : Univ_Integer := 1) -> optional Univ_Integer;
+
+    func Enum_As_Str(U : Univ_Enumeration) -> Univ_String;
 
     type Either_Kind is Enum<[#left, #right]>;
     interface Either<L is Assignable<>; R is Assignable<>> is

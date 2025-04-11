@@ -1,0 +1,29 @@
+import PSC::Reflection;
+
+class SailGate::Sema::Sema_Error is
+exports
+    func With_Source(E : Sema_Error;
+            New_Source : Reflection::Source_Position) -> Sema_Error is
+        return (Kind => E.Kind, Source => New_Source);
+    end func With_Source
+
+    func Dump(E : Sema_Error) is
+        if E.Source not null then
+            Println("SailGate semantic error at " | E.Source | ": ");
+        else
+            Println("SailGate semantic error: ");
+        end if
+        case E.Kind of
+            [#no_entity] => Println("No entities found");
+            [#invalid_field_type] => Println("Invalid field type. Field must be a realized RTL type");
+            [#mutable_field] => Println("Invalid field mutability. Field must be constant");
+            [#ref_field_type] => Println("Invalid field type. Field cannot be ref");
+            [#field_init_val] => Println("Entity field cannot have initial value");
+            [#field_non_vec_align] => Println("Only vector fields can have align clauses");
+            [#invalid_inst] => Println("Invalid instruction");
+            [#invalid_anno] => Println("Invalid align clause");
+            [#non_const_val] => Println("Value must be a compile-time known literal");
+            [#invalid_run_return] => Println("Invalid \"Run\" method. Run must return the entity type")
+        end case
+    end func Dump
+end class SailGate::Sema::Sema_Error

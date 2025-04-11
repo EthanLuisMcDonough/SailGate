@@ -6,65 +6,6 @@ import SailGate::Prelude;
 import SailGate::Sema::Names;
 
 class SailGate::Sema::Util is
-    /// Extracts the clock domain info from a type parameter
-    func Read_Type_Dom(Info : Param_Info) -> optional IR::Domain is
-        if Info.Kind != #formal_object then
-            return null;
-        end if
-
-        const LCCV := Large_Const_Component_Values(Info.Data);
-        if |LCCV| != 2 then
-            return null;
-        end if
-
-        if LCCV[1] > 3 then
-            return null;
-        end if
-        const Dom_Kind : Prelude::Domain_Kind := (case LCCV[1] of
-            [0] => #async;
-            [1] => #clock;
-            [2] => #clock_reset;
-            [..] => #clock_reset_en);
-        const Dom_Name : Univ_Enumeration := Interpret_As_Univ_Enum(LCCV[2]);
-
-        return (Kind => Dom_Kind, Name => Dom_Name);
-    end func Read_Type_Dom
-
-    /// Convert ParaSail type descriptor into RTL scalar type
-    func Scalar_To_Rtl(Type : Type_Descriptor; S : IR::Scalar_Type) -> optional IR::Full_Type is
-        const Type_Params := Parameters(Type);
-        if |Type_Params| == 0 then
-            return null;
-        end if
-
-        const Dom := Read_Type_Dom(Type_Params[1]);
-        if Dom is null then
-            return null;
-        end if
-
-        return (Val => IR::Type::Create(S), Dom => Dom);
-    end func Scalar_To_Rtl
-
-    /// Convert ParaSail type descriptor into RTL vector type
-    func Vec_To_Rtl(Type : Type_Descriptor; V : IR::Vec_Type::Type_Kind) -> optional IR::Full_Type is
-        const Type_Params := Parameters(Type);
-        if |Type_Params| < 2 then
-            return null;
-        end if
-
-        const Num_Param := Type_Params[1];
-        if Num_Param.Kind != #formal_object then
-            return null;
-        end if
-        const Vec_Size := Num_Param.Data.Value;
-
-        const Dom := Read_Type_Dom(Type_Params[2]);
-        if Dom is null then
-            return null;
-        end if
-
-        return (Val => IR::Type::Create(V, Vec_Size), Dom => Dom);
-    end func Vec_To_Rtl
 exports
     func Base_Type(Desc : Type_Descriptor) -> Type_Descriptor is
         const Parent := Parent_Type(Desc);
@@ -101,36 +42,6 @@ exports
             return Name[1..(I - 1)];
         end if
     end func Base_Name
-
-    func Type_To_Rtl(Type : Type_Descriptor) -> optional IR::Full_Type is
-        if Type is null or else Is_Polymorphic(Type) then
-            return null;
-        end if
-
-        var Scalar_Type : optional IR::Scalar_Type := null;
-        const TN := Name(Type);
-
-        if Starts_With(TN, Names::Types::Logic) then
-            Scalar_Type := #logic;
-        elsif Starts_With(TN, Names::Types::Bool) then
-            Scalar_Type := #bool;
-        end if
-
-        if Scalar_Type not null then
-            return Scalar_To_Rtl(Type, Scalar_Type);
-        end if
-
-        var Vec_Type : IR::Vec_Type::Type_Kind := #logic;
-        if Starts_With(TN, Names::Types::SVec) then
-            Vec_Type := #int;
-        elsif Starts_With(TN, Names::Types::UVec) then
-            Vec_Type := #uint;
-        elsif not Starts_With(TN, Names::Types::LVec) then
-            return null; 
-        end if
-
-        return Vec_To_Rtl(Type, Vec_Type);
-    end func Type_To_Rtl
 
     func Find_Tree_Source(T : Tree) -> optional Source_Position is
         if T is null then

@@ -9,8 +9,10 @@
         "builder/vhdl.psi",
         "sema/sema.psi",
         "sema/names.psi",
-        "sema/util.psi",
         "sema/debug.psi",
+        "sema/error.psi",
+        "sema/util.psi",
+        "sema/reader.psi",
         "sema/validator.psi",
         "sema/extractor.psi",
         "driver.psi"

@@ -1,0 +1,224 @@
+import SailGate::Prelude;
+import PSC::Reflection::*;
+import SailGate::Sema::Sema_Error;
+import SailGate::Sema::Names;
+import SailGate::Sema::Util;
+import SailGate::IR;
+import SailGate::Util::Starts_With;
+import SailGate::Util::Result;
+
+class SailGate::Sema::Reader is
+    type Align_Result is Result<IR::Alignment, Sema_Error>;
+
+    /// Extracts the clock domain info from a type parameter
+    func Read_Type_Dom(Info : Param_Info) -> optional IR::Domain is
+        if Info.Kind != #formal_object then
+            return null;
+        end if
+
+        const LCCV := Large_Const_Component_Values(Info.Data);
+        if |LCCV| != 2 then
+            return null;
+        end if
+
+        if LCCV[1] > 3 then
+            return null;
+        end if
+        const Dom_Kind : Prelude::Domain_Kind := (case LCCV[1] of
+            [0] => #async;
+            [1] => #clock;
+            [2] => #clock_reset;
+            [..] => #clock_reset_en);
+        const Dom_Name : Univ_Enumeration := Interpret_As_Univ_Enum(LCCV[2]);
+
+        return (Kind => Dom_Kind, Name => Dom_Name);
+    end func Read_Type_Dom
+
+    /// Convert ParaSail type descriptor into RTL scalar type
+    func Scalar_To_Rtl(Type : Type_Descriptor; S : IR::Scalar_Type) -> optional IR::Full_Type is
+        const Type_Params := Parameters(Type);
+        if |Type_Params| == 0 then
+            return null;
+        end if
+
+        const Dom := Read_Type_Dom(Type_Params[1]);
+        if Dom is null then
+            return null;
+        end if
+
+        return (Val => IR::Type::Create(S), Dom => Dom);
+    end func Scalar_To_Rtl
+
+    /// Convert ParaSail type descriptor into RTL vector type
+    func Vec_To_Rtl(Type : Type_Descriptor; V : IR::Vec_Type::Type_Kind) -> optional IR::Full_Type is
+        const Type_Params := Parameters(Type);
+        if |Type_Params| < 2 then
+            return null;
+        end if
+
+        const Num_Param := Type_Params[1];
+        if Num_Param.Kind != #formal_object then
+            return null;
+        end if
+        const Vec_Size := Num_Param.Data.Value;
+
+        const Dom := Read_Type_Dom(Type_Params[2]);
+        if Dom is null then
+            return null;
+        end if
+
+        return (Val => IR::Type::Create(V, Vec_Size), Dom => Dom);
+    end func Vec_To_Rtl
+
+
+    /// Read alignment clause from annotation metadata
+    func Read_Alignment(D : Tree {Kind(D) == #annotation}) -> Align_Result is
+        const Anno_Source := Util::Find_Tree_Source(D);
+        const Anno_Err := Align_Result::Err((
+            Kind => #invalid_anno, Source => Anno_Source));
+
+        // Find function call
+        if Num_Operands(D) != 1 then
+            return Anno_Err;
+        end if
+
+        const Invoc := Nth_Operand(D, 1);
+        if Invoc is null or else Kind(Invoc) != #invocation then
+            return Anno_Err;
+        end if
+
+        // Makes sure we're calling the right function
+        const Call := Util::Get_Call_Operation(Invoc);
+        if Call is null or else
+                Util::Get_Decl_Name(Call) != Names::Functions::Align then
+            return Anno_Err;
+        end if
+
+        var Dir : Prelude::Vec_Dir := #default;
+        var Offset : Prelude::Natural := 0;
+
+        // Loop through call operands and find 
+        for I in 2..Num_Operands(Invoc) forward loop
+            var Argument := Nth_Operand(Invoc, I);
+            if Kind(Argument) == #reference then
+                Argument := Nth_Operand(Argument,
+                    Tree::Reference_Referent_Op);
+            end if
+
+            if Kind(Argument) == #identifier and then
+                    Lit_Kind(Argument) == #enum_literal then
+                case Identifier(Argument) of
+                    ["#default"] =>
+                        Dir := #default;
+                    ["#up"] =>
+                        Dir := #up;
+                    ["#down"] =>
+                        Dir := #down;
+                end case
+                continue loop;
+            end if
+
+            const Int_Val := Read_Const_Int(Argument);
+            if Int_Val is null or else Int_Val < 0 then
+                const Arg_Source := Util::Find_Tree_Source(Argument);
+                return Align_Result::Err((
+                    Kind => #non_const_val, Source => Arg_Source));
+            end if
+            Offset := Int_Val;
+        end loop
+
+        return Align_Result::Ok((Dir => Dir, Offset => Offset));
+    end func Read_Alignment
+exports
+    func Type_To_Rtl(Type : Type_Descriptor) -> optional IR::Full_Type is
+        if Type is null or else Is_Polymorphic(Type) then
+            return null;
+        end if
+
+        var Scalar_Type : optional IR::Scalar_Type := null;
+        const TN := Name(Type);
+
+        if Starts_With(TN, Names::Types::Logic) then
+            Scalar_Type := #logic;
+        elsif Starts_With(TN, Names::Types::Bool) then
+            Scalar_Type := #bool;
+        end if
+
+        if Scalar_Type not null then
+            return Scalar_To_Rtl(Type, Scalar_Type);
+        end if
+
+        var Vec_Type : IR::Vec_Type::Type_Kind := #logic;
+        if Starts_With(TN, Names::Types::SVec) then
+            Vec_Type := #int;
+        elsif Starts_With(TN, Names::Types::UVec) then
+            Vec_Type := #uint;
+        elsif not Starts_With(TN, Names::Types::LVec) then
+            return null; 
+        end if
+
+        return Vec_To_Rtl(Type, Vec_Type);
+    end func Type_To_Rtl
+
+    /// Read alignment and add it to type
+    func Add_Alignment(var T : IR::Full_Type; Align_Tree : optional Tree)
+            -> optional Sema_Error is
+        if Align_Tree is null then
+            return;
+        end if
+
+        const Align_Source := Util::Find_Tree_Source(Align_Tree);
+        if T.Val.Kind != #vec then
+            return (Kind => #field_non_vec_align, Source => Align_Source);
+        end if
+
+        const Alignment_Result := Read_Alignment(Align_Tree);
+        if Is_Err(Alignment_Result) then
+            return Unwrap_Err(Alignment_Result);
+        end if
+
+        const Vec_Type := Get_Vec(T.Val);
+        const Alignment := Ok(Alignment_Result);
+
+        const New_Type := IR::Type::Create(Vec_Type.Kind, Vec_Type.Size, Alignment);
+        T := (Dom => T.Dom, Val => New_Type);
+    end func Add_Alignment
+
+    func Read_Const_Int(T : Tree) -> optional Univ_Integer is
+        if T is null then
+            return null;
+        end if
+
+        case Kind(T) of
+            [#binary] =>
+                const Right := Read_Const_Int(Nth_Operand(T, Tree::Binary_Right_Op));
+                const Left := Read_Const_Int(Nth_Operand(T, Tree::Binary_Left_Op));
+                if Right not null and then Left not null then
+                    case Binary_Op(T) of
+                        [#plus_op] => return Left + Right;
+                        [#minus_op] => return Left - Right;
+                        [#times_op] => return Left * Right;
+                        [#divide_op] => return Left / Right;
+                        [#power_op] => return Left ** Right;
+                        [#left_shift_op] => return Left << Right;
+                        [#right_shift_op] => return Left >> Right;
+                    end case
+                end if
+            [#unary] =>
+                const Val := Read_Const_Int(Nth_Operand(T, Tree::Unary_Val_Op));
+                if Val not null then
+                    case Unary_Op(T) of
+                        [#plus_op] => return Val;
+                        [#minus_op] => return -Val;
+                    end case
+                end if
+            [#identifier] =>
+                if Lit_Kind(T) not null and then Lit_Kind(T) == #integer_literal then
+                    return Univ_Integer::From_String(Identifier(T));
+                end if
+        end case
+
+        return null;
+    end func Read_Const_Int
+
+end class SailGate::Sema::Reader

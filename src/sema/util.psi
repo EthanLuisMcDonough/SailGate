@@ -17,10 +17,6 @@ interface SailGate::Sema::Util<> is
     /// Gets first decl of kind in region
     func First_In_Region(R : Region; Kind : Decl::Decl_Kind) -> optional Decl;
 
-    /// Creates IR type from RTL type descriptor. Returns null for
-    /// incorrect types
-    func Type_To_Rtl(Type : Type_Descriptor) -> optional IR::Full_Type;
-
     /// Finds leftmost source location for a tree node
     func Find_Tree_Source(T : Tree) -> optional Source_Position;
 

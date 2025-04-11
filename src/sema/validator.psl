@@ -3,123 +3,14 @@ import SailGate::*;
 import SailGate::Util::*;
 import SailGate::IR;
 import SailGate::Sema;
+import SailGate::Sema::Reader;
 import SailGate::Sema::Names;
 
-class SailGate::Sema::Sema_Error is
-exports
-    func Dump(E : Sema_Error) is
-        if E.Source not null then
-            Println("SailGate semantic error at " | E.Source | ": ");
-        else
-            Println("SailGate semantic error: ");
-        end if
-        case E.Kind of
-            [#no_entity] => Println("No entities found");
-            [#invalid_field_type] => Println("Invalid field type. Field must be a realized RTL type");
-            [#mutable_field] => Println("Invalid field mutability. Field must be constant");
-            [#ref_field_type] => Println("Invalid field type. Field cannot be ref");
-            [#field_init_val] => Println("Entity field cannot have initial value");
-            [#field_non_vec_align] => Println("Only vector fields can have align clauses");
-            [#invalid_inst] => Println("Invalid instruction");
-            [#invalid_anno] => Println("Invalid align clause");
-            [#non_const_val] => Println("Value must be a compile-time known literal");
-            [#invalid_run_return] => Println("Invalid \"Run\" method. Run must return the entity type")
-        end case
-    end func Dump
-end class SailGate::Sema::Sema_Error
-
 class SailGate::Sema::Validator is
-    /// Read alignment clause from annotation metadata
-    type Align_Result is Result<IR::Alignment, Sema_Error>;
-    func Read_Alignment(D : Reflection::Tree {Kind(D) == #annotation}) -> Align_Result is
-        const Anno_Source := Sema::Util::Find_Tree_Source(D);
-        const Anno_Err := Align_Result::Err((
-            Kind => #invalid_anno, Source => Anno_Source));
-
-        // Find function call
-        if Num_Operands(D) != 1 then
-            return Anno_Err;
-        end if
-
-        const Invoc := Nth_Operand(D, 1);
-        if Invoc is null or else Kind(Invoc) != #invocation then
-            return Anno_Err;
-        end if
-
-        // Makes sure we're calling the right function
-        const Call := Sema::Util::Get_Call_Operation(Invoc);
-        if Call is null or else
-                Sema::Util::Get_Decl_Name(Call) != Names::Functions::Align then
-            return Anno_Err;
-        end if
-
-        var Dir : Prelude::Vec_Dir := #default;
-        var Offset : Prelude::Natural := 0;
-
-        // Loop through call operands and find 
-        for I in 2..Num_Operands(Invoc) forward loop
-            var Argument := Nth_Operand(Invoc, I);
-            if Kind(Argument) == #reference then
-                Argument := Nth_Operand(Argument,
-                    Reflection::Tree::Reference_Referent_Op);
-            end if
-
-            const Arg_Source := Sema::Util::Find_Tree_Source(D);
-            if Kind(Argument) != #identifier then
-                return Align_Result::Err((
-                    Kind => #non_const_val, Source => Arg_Source));
-            end if
-
-            const Lit_Val := Identifier(Argument);
-            case Lit_Kind(Argument) of
-                [#integer_literal] =>
-                    Offset := Univ_Integer::From_String(Lit_Val);
-                [#enum_literal] =>
-                    case Lit_Val of
-                        ["#default"] =>
-                            Dir := #default;
-                        ["#up"] =>
-                            Dir := #up;
-                        ["#down"] =>
-                            Dir := #down;
-                    end case
-                [..] =>
-                    return Anno_Err;
-            end case
-        end loop
-
-        return Align_Result::Ok((Dir => Dir, Offset => Offset));
-    end func Read_Alignment
-
-    /// Read alignment and add it to type
-    func Add_Alignment(var T : IR::Full_Type; Align_Tree : optional Reflection::Tree)
-            -> optional Sema_Error is
-        if Align_Tree is null then
-            return;
-        end if
-
-        const Align_Source := Sema::Util::Find_Tree_Source(Align_Tree);
-        if T.Val.Kind != #vec then
-            return (Kind => #field_non_vec_align, Source => Align_Source);
-        end if
-
-        const Alignment_Result := Read_Alignment(Align_Tree);
-        if Is_Err(Alignment_Result) then
-            return Unwrap_Err(Alignment_Result);
-        end if
-
-        const Vec_Type := Get_Vec(T.Val);
-        const Alignment := Ok(Alignment_Result);
-
-        const New_Type := IR::Type::Create(Vec_Type.Kind, Vec_Type.Size, Alignment);
-        T := (Dom => T.Dom, Val => New_Type);
-    end func Add_Alignment
+    type Entity_Result is Result<Univ_String, Sema_Error>;
 
     /// Traverses Decl AST and inserts valid entity rep into the entity map
-    func Check(var V : Validator; D : Extractor::Raw_Entity_Data) -> optional Sema_Error is
-        var Type_Params : Vector<Reflection::Decl>;
-        var Fields : Vector<Reflection::Decl>;
-
+    func Check(var V : Validator; D : Extractor::Raw_Entity_Data) -> Entity_Result is
         Println("Visiting " | D.Name);
 
         // Gather inputs
@@ -130,39 +21,44 @@ class SailGate::Sema::Validator is
             const P_Decl := P.Param_Decl;
             const P_Tree := Tree_Of(P_Decl);
             const P_Source := Decl_Source_Pos(P_Decl);
+            const P_Name := Id(P_Decl);
 
             if P.Is_Operation_Output then
                 if not P.Is_Of_Current_Inst_Type then
-                    return (Kind => #invalid_run_return,
-                        Source => P_Source);
+                    return Entity_Result::Err((
+                        Kind => #invalid_run_return,
+                        Source => P_Source));
                 end if
             else
                 if P.Is_Var then
-                    return (Kind => #mutable_field,
-                        Source => P_Source);
+                    return Entity_Result::Err((
+                        Kind => #mutable_field,
+                        Source => P_Source));
                 end if
 
                 if P.Is_Passed_By_Ref then
-                    return (Kind => #ref_field_type,
-                        Source => P_Source);
+                    return Entity_Result::Err((
+                        Kind => #ref_field_type,
+                        Source => P_Source));
                 end if
 
                 const Type_Desc := Type_Desc_At_Locator(P.Type_Info);
-                var Rtl_Type := Sema::Util::Type_To_Rtl(Type_Desc);
+                var Rtl_Type := Reader::Type_To_Rtl(Type_Desc);
                 if P.Is_Optional or else Rtl_Type is null or else
                         not Valid_Field_Type(Rtl_Type.Val) then
-                    return (Kind => #invalid_field_type,
-                        Source => P_Source);
+                    return Entity_Result::Err((
+                        Kind => #invalid_field_type,
+                        Source => P_Source));
                 end if
 
                 // Parse align clause
                 const Align_Stmt := Pre_Annotation(P_Tree);
-                const Align_Err := Add_Alignment(Rtl_Type, Align_Stmt);
+                const Align_Err := Reader::Add_Alignment(Rtl_Type, Align_Stmt);
                 if Align_Err not null then
-                    return Align_Err;
+                    return Entity_Result::Err(Align_Err);
                 end if
 
-                Inputs |= (Key => Id(P_Decl), Value => Rtl_Type);
+                Inputs |= (Key => P_Name, Value => Rtl_Type);
             end if
         end loop
 
@@ -171,47 +67,57 @@ class SailGate::Sema::Validator is
         const Comp := Components(D.Desc);
         var Outputs : IR::Entity::Port_Def := [];
         for I in 1..|Comp| forward loop
-            var Rtl_Type := Sema::Util::Type_To_Rtl(Comp[I].Type_Desc);
+            var Rtl_Type := Reader::Type_To_Rtl(Comp[I].Type_Desc);
             const Comp_Decl := Comp[I].Component_Decl;
             const Comp_Source := Decl_Source_Pos(Comp_Decl);
             const Comp_Tree := Tree_Of(Comp_Decl);
+            const Comp_Name := Id(Comp_Decl);
 
             {Kind(Comp_Tree) == #obj_decl}
 
-            if Nth_Operand(Comp_Tree, Reflection::Tree::Obj_Decl_Value_Op) not null then
-                return (Kind => #field_init_val,
-                    Source => Comp_Source);
+            if Nth_Operand(Comp_Tree, Reflection::Tree::Obj_Decl_Value_Op)
+                    not null then
+                return Entity_Result::Err((
+                    Kind => #field_init_val,
+                    Source => Comp_Source));
             end if
 
             // Parse align clause
             const Align_Stmt := Pre_Annotation(Comp_Tree);
-            const Align_Err := Add_Alignment(Rtl_Type, Align_Stmt);
+            const Align_Err := Reader::Add_Alignment(Rtl_Type, Align_Stmt);
             if Align_Err not null then
-                return Align_Err;
+                return Entity_Result::Err(Align_Err);
             end if
 
             if Comp[I].Is_By_Ref then
-                return (Kind => #ref_field_type,
-                    Source => Comp_Source);
+                return Entity_Result::Err((
+                    Kind => #ref_field_type,
+                    Source => Comp_Source));
             end if
 
             if Comp[I].Is_Var then
-                return (Kind => #mutable_field,
-                    Source => Comp_Source);
+                return Entity_Result::Err((
+                    Kind => #mutable_field,
+                    Source => Comp_Source));
             end if
 
             if Rtl_Type is null or else not Valid_Field_Type(Rtl_Type.Val) then
-                return (Kind => #invalid_field_type,
-                    Source => Comp_Source);
+                return Entity_Result::Err((
+                    Kind => #invalid_field_type,
+                    Source => Comp_Source));
             end if
 
-            Outputs |= (Key => Id(Comp_Decl), Value => Rtl_Type);
+            Outputs |= (Key => Comp_Name, Value => Rtl_Type);
         end loop
+
+        const Base_Name := Name(D.Desc);
 
         const Entity : IR::Entity := (
             Inputs => Inputs, Outputs => Outputs,
             Domains => [], Behavior => D.Arch);
-        V.Entities |= (Key => Name(D.Desc), Value => Entity);
+        V.Entities |= (Key => Base_Name, Value => Entity);
+
+        return Entity_Result::Ok(Base_Name);
     end func Check
 exports
     func Create() -> Validator is
@@ -224,8 +130,8 @@ exports
         end if
         for I in 1..|Ex.Entities| forward loop
             const Res := Check(V, Ex.Entities[I]);
-            if Res not null then
-                return Res;
+            if Is_Err(Res) then
+                return Err(Res);
             end if
         end loop
     end func Check

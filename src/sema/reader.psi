@@ -1,0 +1,20 @@
+import PSC::Reflection::*;
+import SailGate::Sema::Sema_Error;
+import SailGate::IR;
+
+/// Methods for interpreting ParaSail AST nodes as IR values
+interface SailGate::Sema::Reader<> is
+
+    /// Creates IR type from RTL type descriptor. Returns null for
+    /// incorrect types
+    func Type_To_Rtl(Type : Type_Descriptor) -> optional IR::Full_Type;
+
+    /// Adds offset and direction to existing RTL type based on information
+    /// passed in the align tree. This align tree will be an annotation node
+    func Add_Alignment(var T : IR::Full_Type; Align_Tree : optional Tree)
+        -> optional Sema_Error;
+
+    /// Attempts to read tree as a constant integer. Returns null on failure
+    func Read_Const_Int(T : Tree) -> optional Univ_Integer;
+
+end interface SailGate::Sema::Reader

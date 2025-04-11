@@ -14,6 +14,11 @@ exports
         end loop
     end func Index_Of
 
+    func Enum_As_Str(U : Univ_Enumeration) -> Univ_String is
+        const E := To_String(U);
+        return E[2..|E|];
+    end func Enum_As_Str
+
     class Either is
         abstract interface Either_Internal_Base<> is
             func Is_Left(E : Either_Internal_Base) -> Boolean;

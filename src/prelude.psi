@@ -40,19 +40,13 @@ interface SailGate::Prelude<> is
         func Force_Dom(A : Domain; B : Domain) -> Domain;
     end interface Util
 
-    type Logic_Val is Enum<[#false, #true, #x, #z, #dont_care]>;
-
     /// RTL types without clock domains. These types are used for case/switch
     /// comparisons exclusively. The Rtl_Ordering gives ParaSail's case construct
     /// issues. These types only implement univ conversions and comparison
     interface Switch_Values<> is
         interface Logic<> is
-            op "from_univ"(Univ : Univ_Integer
-                { Univ in 0..1 }) -> Logic;
             op "from_univ"(S : Univ_Character
                 {Util::Is_Logic_Char(S)}) -> Logic;
-            op "from_univ"(Univ : Univ_Enumeration)
-                {Univ in Logic_Val::Range()} -> Logic;
             op "=?"(L, R : Logic) -> Ordering;
         end interface Logic
 
@@ -117,12 +111,7 @@ interface SailGate::Prelude<> is
     /// Base logical unit. Represents a wire signal. This can be 0, 1, unknown,
     /// high-impedance, or don't care. Each value corresponds to a YOSYS bit value
     interface Logic<Dom : Domain := Async> implements Scalar_Type<Dom> is
-        const Value : Logic_Val;
-
-        op "from_univ"(Univ : Univ_Integer { Univ in 0..1 }) -> Logic;
         op "from_univ"(S : Univ_Character {Util::Is_Logic_Char(S)}) -> Logic;
-        op "from_univ"(Univ : Univ_Enumeration)
-            {Univ in Logic_Val::Range()} -> Logic;
 
         op "not"(L : Logic) -> Logic;
         op "and"(Left, R : Logic) -> Logic;

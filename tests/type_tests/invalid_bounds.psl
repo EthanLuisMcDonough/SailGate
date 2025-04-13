@@ -10,9 +10,9 @@ func Test_Invalid_Bounds() is
     const Bad_Index := 4;
     var Invalid : IVec<3> := 0;
 
-    Invalid[Okay_Index] := 1;
-    Invalid[1] := 0;
+    Invalid[Okay_Index] := '1';
+    Invalid[1] := '0';
 
     // CHECK: Error: Assertion failed:  {> U < Size <}
-    Invalid[Bad_Index] := 0;
+    Invalid[Bad_Index] := '0';
 end func Test_Invalid_Bounds

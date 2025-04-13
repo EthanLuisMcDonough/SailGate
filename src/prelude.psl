@@ -4,6 +4,7 @@
 /// The methods that are defined are related to compile-time conversion.
 
 class SailGate::Prelude is
+    type Logic_Val is Enum<[#false, #true, #x, #z, #dont_care]>;
 exports
     func Has_Clock(D : Domain_Kind) -> Boolean is
         case D of
@@ -129,28 +130,20 @@ exports
     class Switch_Values is
     exports
         class Logic is
-            const Val : Logic_Val;
+            const Value : Logic_Val;
         exports
-            op "from_univ"(Univ : Univ_Integer) -> Logic is
-                return (Val => (if Univ == 1 then #true else #false));
-            end op "from_univ"
-
             op "from_univ"(S : Univ_Character) -> Logic is
                 case S of
-                    ['1'] => return #true;
-                    ['0'] => return #false;
-                    ['-'] => return #dont_care;
-                    ['X'] => return #x;
-                    ['Z'] => return #z;
+                    ['1'] => return (Value => #true);
+                    ['0'] => return (Value => #false);
+                    ['-'] => return (Value => #dont_care);
+                    ['X'] => return (Value => #x);
+                    ['Z'] => return (Value => #z);
                 end case
             end op "from_univ"
 
-            op "from_univ"(Univ : Univ_Enumeration) -> Logic is
-                return (Val => Univ);
-            end op "from_univ" 
-
             op "=?"(L, R : Logic) -> Ordering is
-                return R.Val =? L.Val;
+                return R.Value =? L.Value;
             end op "=?"
         end class Logic
 
@@ -248,32 +241,22 @@ exports
     end class Rtl_Ordering
 
     class Logic is
+        const Value : Logic_Val;
     exports
-        op "from_univ"(Univ : Univ_Enumeration) -> Logic is
-            return with (Value => Univ);
-        end op "from_univ"
-
-        op "from_univ"(Univ : Univ_Integer) -> Logic is
-            case Univ of
-                [0] => return #false
-                [..] => return #true
-            end case
-        end op "from_univ"
-
         op "from_univ"(S : Univ_Character) -> Logic is
             case S of
-                ['1'] => return #true
-                ['0'] => return #false
-                ['-'] => return #dont_care
-                ['X'] => return #x
-                ['Z'] => return #z
+                ['1'] => return (Value => #true);
+                ['0'] => return (Value => #false);
+                ['-'] => return (Value => #dont_care);
+                ['X'] => return (Value => #x);
+                ['Z'] => return (Value => #z);
             end case
         end op "from_univ"
 
         op "not"(L : Logic) -> Logic is
             case L.Value of
-                [#true] => return #false
-                [#false] => return #true
+                [#true] => return (Value => #false);
+                [#false] => return (Value => #true);
                 [..] => return L
             end case
         end op "not"
@@ -322,11 +305,11 @@ exports
         var Internal_Ref : Logic<Dom>;
     exports
         op "from_univ"(Univ : Univ_Integer) -> Vec is
-            return (Internal_Ref => 0);
+            return (Internal_Ref => '0');
         end op "from_univ"
 
         op "from_univ"(U : Univ_String) -> Vec is
-            return (Internal_Ref => 0);
+            return (Internal_Ref => '0');
         end op "from_univ"
 
         op "not"(L : Vec) -> Vec is
@@ -350,7 +333,7 @@ exports
         end op "=?"
 
         op "indexing"(M : Vec; Key : Vec_Index<Size>) -> Logic<Dom> is
-            return #false;
+            return (Value => #false);
         end op "indexing"
 
         op "var_indexing"(ref var M : Vec; Key : Vec_Index<Size>) -> ref var Logic<Dom> is
@@ -395,11 +378,11 @@ exports
         var Internal_Ref : Logic<Dom>;
     exports
         op "from_univ"(Univ : Univ_Integer) -> IVec is
-            return (Internal_Ref => 0);
+            return (Internal_Ref => '0');
         end op "from_univ"
 
         op "from_univ"(U : Univ_String) -> IVec is
-            return (Internal_Ref => 0);
+            return (Internal_Ref => '0');
         end op "from_univ"
 
         op "not"(L : IVec) -> IVec is
@@ -451,7 +434,7 @@ exports
         end op "mod"
 
         op "indexing"(M : IVec; Key : Vec_Index<Size>) -> Logic<Dom> is
-            return #false;
+            return (Value => #false);
         end op "indexing"
 
         op "var_indexing"(ref var M : IVec; Key : Vec_Index<Size>) -> ref var Logic<Dom> is
@@ -484,7 +467,7 @@ exports
         end func Switch
 
         func Logic_Vec(V : IVec) -> Vec<Size, Dom> is
-            return (Internal_Ref => 0);
+            return (Internal_Ref => '0');
         end func Logic_Vec
     end class IVec
 
@@ -492,11 +475,11 @@ exports
         var Internal_Ref : Logic<Dom>;
     exports
         op "from_univ"(Univ : Univ_Integer) -> UVec is
-            return (Internal_Ref => 0);
+            return (Internal_Ref => '0');
         end op "from_univ"
 
         op "from_univ"(U : Univ_String) -> UVec is
-            return (Internal_Ref => 0);
+            return (Internal_Ref => '0');
         end op "from_univ"
 
         op "not"(L : UVec) -> UVec is
@@ -548,7 +531,7 @@ exports
         end op "mod"
 
         op "indexing"(M : UVec; Key : Vec_Index<Size>) -> Logic<Dom> is
-            return #false;
+            return (Value => #false);
         end op "indexing"
 
         op "var_indexing"(ref var M : UVec; Key : Vec_Index<Size>) -> ref var Logic<Dom> is
@@ -581,7 +564,7 @@ exports
         end func Switch
 
         func Logic_Vec(V : UVec) -> Vec<Size, Dom> is
-            return (Internal_Ref => 0);
+            return (Internal_Ref => '0');
         end func Logic_Vec
     end class UVec
 

@@ -1,0 +1,126 @@
+import SailGate::IR;
+import SailGate::Sema::*;
+import SailGate::Prelude::Domain_Kind;
+import SailGate::Util::Result;
+import SailGate::Sema::Names;
+import SailGate::Sema::Extractor::Raw_Entity_Data;
+import PSC::Reflection;
+
+class SailGate::Sema::IR_Builder<> is
+exports
+    class Entity_Builder is
+        const Name : Univ_String;
+
+        var Is_Top_Level : Boolean := #true;
+        var Inputs : IR::Port_Def := [];
+        var Outputs : IR::Port_Def := [];
+        var Output_Values : IR::Expr_Map := [];
+        var Registers : IR::Reg_Def := [];
+        var Components : Vector<IR::Component> := [];
+        var Domains : IR::Domain_Map := [];
+        var Impl : IR::Implicit_Processes := [];
+        var Expl : IR::Processes := [];
+        var Concurrent : IR::Concurrent_Defs := [];
+        var Scope : IR::Entity_Scope := [];
+
+        /// Adds item to entity scope
+        func Add_Scope_Item(var E : Entity_Builder;
+                Name : Univ_String {Name not in E.Scope};
+                Kind : IR::Scope_Item) is
+            E.Scope |= (Key => Name, Value => Kind);
+        end func Add_Scope_Item
+
+        // Checks if domain is in entity scope or async
+        func Is_Domain_Ok(E : Entity_Builder; Dom : IR::Domain) -> Boolean is
+            if Dom.Full_Name == Names::Types::Async then
+                return #true;
+            elsif Dom.Name in E.Domains then
+                return Dom.Full_Name == E.Domains[Dom.Name].Full_Name;
+            else
+                return #false;
+            end if
+        end func Is_Domain_Ok
+
+        func Check_Field_Type(E : Entity_Builder; T : IR::Type) -> optional Sema_Error is
+            if not Is_Domain_Ok(E, T.Dom) then
+                return (Kind => #domain_out_of_scope,
+                    Source => T.Source)
+            elsif not Valid_Field_Type(T) then
+                return (Kind => #invalid_field_type,
+                    Source => T.Source)
+            end if
+        end func Check_Field_Type
+    exports
+        func Create(Name : Univ_String) -> Entity_Builder is
+            return (Name => Name);
+        end func Create
+
+        func Add_Clock_Param(var E : Entity_Builder; Dom : IR::Domain) is
+            E.Domains |= (Key => Dom.Name, Value => Dom);
+            Add_Scope_Item(E, Dom.Name, #domain);
+            // If the entity has a type param, we know it can't be top level
+            E.Is_Top_Level := #false;
+        end func Add_Clock_Param
+
+        func Add_Clock_Obj(var E : Entity_Builder; Dom : IR::Domain) -> optional Sema_Error is
+            if not E.Is_Top_Level then
+                return #dom_obj_in_abstract;
+            end if
+            E.Domains |= (Key => Dom.Name, Value => Dom);
+            Add_Scope_Item(E, Dom.Name, #domain);
+        end func Add_Clock_Obj
+
+        func Read_Type(E : Entity_Builder; T : Reflection::Tree) -> Type_Result is
+
+            {#false}
+        end func Read_Type
+
+        func Add_Input(var E : Entity_Builder; Name : Univ_String;
+                Type : IR::Type) -> optional Sema_Error is
+            Add_Scope_Item(E, Name, #input);
+            const Check_Err := Check_Field_Type(E, Type);
+            if Check_Err not null then
+                return Check_Err;
+            end if
+            E.Inputs |= (Key => Name, Value => Type);
+        end func Add_Input
+
+        func Add_Output(var E : Entity_Builder; Name : Univ_String;
+                Type : IR::Type) -> optional Sema_Error is
+            const Check_Err := Check_Field_Type(E, Type);
+            if Check_Err not null then
+                return Check_Err;
+            end if
+            E.Outputs |= (Key => Name, Value => Type);
+        end func Add_Output
+
+        func Add_Register(var E : Entity_Builder;
+                Name : Univ_String; Type : IR::Type;
+                Init : optional Reflection::Tree := null) -> optional Sema_Error is
+            {#false}
+        end func Add_Register
+
+        func Add_Wire(var E : Entity_Builder; W : IR::Wire)
+                -> optional Sema_Error is
+            {#false}
+        end func Add_Wire
+
+        func Output_Assign(var E : Entity_Builder; Name : Univ_String;
+                T : Reflection::Tree) -> optional Sema_Error is
+            {#false}
+        end func Output_Assign
+
+        func Build(E : Entity_Builder) -> IR::Entity is
+            const Finished : IR::Entity := (Name => E.Name,
+                Is_Top_Level => E.Is_Top_Level, Inputs => E.Inputs,
+                Outputs => E.Outputs, Output_Values => E.Output_Values,
+                Registers => E.Registers, Components => E.Components,
+                Domains => E.Domains, Scope => E.Scope, Impl => E.Impl,
+                Expl => E.Expl, Concurrent => E.Concurrent, Test_Bench => null);
+            return Finished;
+        end func Build
+    end class Entity_Builder
+
+
+
+end class SailGate::Sema::IR_Builder

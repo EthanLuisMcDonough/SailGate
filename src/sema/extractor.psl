@@ -3,15 +3,6 @@ import SailGate::Sema::*;
 import SailGate::Util::*;
 
 class SailGate::Sema::Extractor is
-    interface Incomplete_Decl<> is
-        const Def : Decl;
-        const Arch : Routine;
-        const Desc : Type_Descriptor;
-    end interface Incomplete_Decl
-
-    var Pending : Ordered_Map<Univ_String, Incomplete_Decl>;
-    var Visited : Set<Univ_String>;
-
     /// Checks if a declaration is or is in a module with the given name
     func In_Module(D : Decl; Mod_Name : Univ_String) -> Boolean is
         const Full_Name := Util::Get_Decl_Name(D);
@@ -27,74 +18,43 @@ class SailGate::Sema::Extractor is
             In_Module(D, "SailGate");
     end func Is_Std_Decl
 
-    /// If the type is an entity, return it's architecture. Otherwise,
-    /// return null
-    func Get_Entity_Arch(Type : Type_Descriptor) -> optional Routine is
-        if Type is null then
-            return null;
+    /// Check if we can ignore decl all together
+    func Should_Visit(D : Decl) -> Boolean is
+        return D not null and then Is_Spec(D) and then Kind(D) == #module;
+    end func Should_Visit
+
+    /// Check if module is potential entity or just a package
+    func Is_Package(D : Decl) -> Boolean is
+        if not Should_Visit(D) then
+            return #false;
         end if
 
-        var Ops := Operations(Type);
-        for I in 1..|Ops| forward loop
-            const Ind := Ops[I].Index;
-            var R := Routine::Routine_At_Index(Ind);
-            if Name(R) == "Run" then
-                return R;
+        const DR := Decl_Region(D);
+        if DR is null then
+            return #false;
+        end if
+
+        for I in 2..Num_Items(DR) forward loop
+            const Item := Nth_Item(DR, I);
+            if Kind(Item) != #module then
+                return #false;
             end if
         end loop
 
-        return null;
-    end func Get_Entity_Arch
+        return #true;
+    end func Is_Package
 
-    /// Extracts relevant entity information and returns it as an
-    /// incomplete value. This value is stored and then later used to
-    /// create the complete entity object
-    func Get_Entity(D : Decl) -> optional Incomplete_Decl is
-        if D is null or else Kind(D) != #module then
-            return null;
-        end if
-
-        const Type_Decl := Util::First_In_Region(Decl_Region(D), #type);
-        if Type_Decl is null then
-            return null;
-        end if
-
-        const Desc := Descriptor_For_Type(Type_Decl);
-        if Desc is null then
-            return null;
-        end if
-
-        const Arch := Get_Entity_Arch(Desc);
-        if Arch is null then
-            return null;
-        end if
-
-        return (Def => D, Arch => Arch, Desc => Desc);
-    end func Get_Entity
-
-    /// Visit a decl. If its an interface, then add it to the pending
-    /// module map. If its a class, pop the pending module from the app
-    /// and use that data to create the complete entity
+    /// Visit a decl
     func Visit_Decl(var E : Extractor; D : Decl) is
-        if Kind(D) != #module then
+        if not Should_Visit(D) then
             return;
         end if
 
-        const Entity := Get_Entity(D);
-        if Entity not null then
-            if Is_Spec(D) then
-                Visit_Spec(E, Entity);
-            else
-                Visit_Impl(E, D);
-            end if
-            return;
-        end if
-
-        if Is_Spec(D) then
+        if Is_Package(D) then
             // Check for entities nested inside modules
-            // Don't look inside classes, those interfaces are private
             Visit_Region(E, Decl_Region(D));
-            Visit_Region(E, Body_Region(D));
+        else
+            E.Entities |= Module_Desc::Create(D);
         end if
     end func Visit_Decl
 
@@ -108,25 +68,107 @@ class SailGate::Sema::Extractor is
             Visit_Decl(E, Nth_Item(R, J));
         end loop
     end func Visit_Region
-
-    func Visit_Spec(var E : Extractor; D : Incomplete_Decl) is
-        const Name := Util::Get_Decl_Name(D.Def);
-        E.Pending |= (Key => Name, Value => D);
-    end func Visit_Spec
-
-    func Visit_Impl(var E : Extractor; D : Decl) is
-        const Name := Util::Get_Decl_Name(D);
-        {> Name in E.Pending <}
-        const Prev <== E.Pending[Name];
-        E.Entities |= (Name => Name,
-            Spec => Prev.Def, Impl => D,
-            Desc => Prev.Desc, Arch => Prev.Arch);
-        E.Pending -= Name;
-    end func Visit_Impl
 exports
+    class Module_Desc is
+        func Print_Decl_Item(D : Decl) is
+            Println("   - " | Id(D) | " (kind: " | Kind(D) |
+                ", tree: " | Kind(Tree_Of(D)) | ")");
+        end func Print_Decl_Item
+
+        func Print_Decl_Map(M : Decl_Map) is     
+            if Is_Empty(M) then
+                Println("   [none]");
+            else
+                for each [Name => D] of M forward loop
+                    Print_Decl_Item(D);
+                end loop
+            end if
+        end func Print_Decl_Map
+    exports
+        func Create(D : Decl) -> Module_Desc is
+            var D_Type : optional Decl := null;
+            var Objects : Decl_Map := [];
+            var Params : Decl_Map := [];
+            var Components : Decl_Map := [];
+            var Types : Decl_Map := [];
+            var Operations : Op_Map := [];
+            var Modules : Mod_Map := [];
+
+            const DR := Decl_Region(D);
+            for I in 1..Num_Items(DR) forward loop
+                const Decl_Item := Nth_Item(DR, I);
+                const Decl_Name := Id(Decl_Item);
+                const Decl_Tree := Tree_Of(Decl_Item);
+
+                const Map_Val : Decl_Map::Pair := (Key => Decl_Name, Value => Decl_Item);
+
+                if Kind(Decl_Tree) == #param_decl then
+                    Params |= Map_Val;
+                else
+                    case Kind(Decl_Item) of
+                        [#module] =>
+                            Modules |= (Key => Decl_Name, Value => Create(Decl_Item));
+                        [#type] =>
+                            if D_Type is null then
+                                D_Type := Decl_Item;
+                            else
+                                Types |= Map_Val;
+                            end if
+                        [#object] =>
+                            const Ind := Component_Index(Decl_Item);
+                            if Ind is null then
+                                Objects |= Map_Val;
+                            else
+                                Components |= Map_Val;
+                            end if
+                        [#operation] =>
+                            const R := Routine_For_Operation(Decl_Item);
+                            if R not null then
+                                const Op : Module_Op := (Name => Name(R),
+                                    Decl => Decl_Item, Routine => R);
+                                Operations |= (Key => Decl_Name, Value => Op);
+                            end if
+                    end case
+                end if
+            end loop
+
+            return (Name => Util::Get_Decl_Name(D),
+                Decl => D, Decl_Type => D_Type,
+                Type_Desc => Descriptor_For_Type(D_Type),
+                Objects => Objects, Params => Params,
+                Components => Components, Types => Types,
+                Operations => Operations, Modules => Modules);
+        end func Create
+
+        func Dump(M : Module_Desc) is
+            Println("==== " | Util::Get_Decl_Name(M.Decl) | " ====");
+            Println(" - Has type desc: " | To_String(M.Type_Desc is null));
+
+            Println(" - Parameters:");
+            Print_Decl_Map(M.Params);
+
+            Println(" - Objects:");
+            Print_Decl_Map(M.Objects);
+
+            Println(" - Components:");
+            Print_Decl_Map(M.Components);
+
+            Println(" - Types:");
+            Print_Decl_Map(M.Types);
+
+            Println(" - Operations:");
+            if Is_Empty(M.Operations) then
+                Println("   [none]");
+            else
+                for each [Name => D] of M.Operations forward loop
+                    Print_Decl_Item(D.Decl);
+                end loop
+            end if
+        end func Dump
+    end class Module_Desc
+
     func Create() -> Extractor is
-        return (Entities => [], Pending => [],
-            Outputs => [], Visited => []);
+        return (Entities => []);
     end func Create
 
     func Load(var Ex : Extractor; var Env : Environment) is

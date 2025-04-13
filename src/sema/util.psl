@@ -16,6 +16,9 @@ exports
     end func Base_Type
 
     func Get_Decl_Name(D : Decl) -> Univ_String is
+        if Id(D) is null then
+            return "<unnamed>";
+        end if
         if Module_Name(D) is null then
             return Id(D);
         end if
@@ -80,4 +83,61 @@ exports
 
         return null;
     end func Get_Call_Operation
+
+    func Get_Resolved_Type(T : Tree) -> optional Type_Descriptor is
+        if T is null then
+            return null;
+        end if
+
+        const Typ := Resolved_Type(T);
+        if Typ not null then
+            return Typ;
+        end if
+
+        const RI := Resolved_Interp(T);
+        if RI not null then
+            const RT := Resolved_Type(T);
+            if RT not null then
+                return RT;
+            end if
+        end if
+    end func Get_Resolved_Type
+
+    func Get_Sem_Info(T : Tree) -> optional Decl is
+        if T is null then
+            return null;
+        end if
+
+        const SI := Sem_Info(T);
+        if SI not null then
+            return SI;
+        end if
+
+        const RI := Resolved_Interp(T);
+        if RI not null then
+            const RSI := Sem_Info(T);
+            if RSI not null then
+                return RSI;
+            end if
+        end if
+    end func Get_Sem_Info
+
+    func Get_Symbol(T : Tree) -> optional Symbol is
+        if T is null then
+            return null;
+        end if
+
+        const Sym := Symbol(T);
+        if Sym not null then
+            return Sym;
+        end if
+
+        const RI := Resolved_Interp(T);
+        if RI not null then
+            const RS := Symbol(T);
+            if RS not null then
+                return RS;
+            end if
+        end if
+    end func Get_Symbol
 end class SailGate::Sema::Util

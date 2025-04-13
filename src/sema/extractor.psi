@@ -3,17 +3,36 @@ import PSC::Reflection::*;
 /// Class for interfacing with the reflection environment and
 /// extracting user-defined entities.
 interface SailGate::Sema::Extractor<> is
-    /// Relevant information
-    interface Raw_Entity_Data<> is
-        const Name : Univ_String;
-        const Spec : Decl;
-        const Impl : Decl;
-        const Desc : Type_Descriptor;
-        const Arch : Routine;
-    end interface Raw_Entity_Data
+    /// Wrapper around a module Decl for easy info access
+    interface Module_Desc<> is
+        interface Module_Op<> is
+            const Name : Univ_String;
+            const Routine : Routine;
+            const Decl : Decl;
+        end interface Module_Op
 
-    var Entities : Vector<Raw_Entity_Data>;
-    var Outputs : Map<Univ_String, Decl>;
+        const Name : Univ_String;
+
+        type Decl_Map is Ordered_Map<Univ_String, Decl>;
+        type Op_Map is Ordered_Map<Univ_String, Module_Op>;
+        type Mod_Map is Ordered_Map<Univ_String, Module_Desc>;
+
+        const Decl : Decl;
+        const Decl_Type : Decl;
+        const Type_Desc : optional Type_Descriptor;
+
+        const Objects : Decl_Map;
+        const Params : Decl_Map;
+        const Components : Decl_Map;
+        const Types : Decl_Map;
+        const Operations : Op_Map;
+        const Modules : Mod_Map;
+
+        func Create(D : Decl {Kind(D) == #module}) -> Module_Desc;
+        func Dump(M : Module_Desc);
+    end interface Module_Desc
+
+    var Entities : Vector<Module_Desc>;
 
     /// Creates extractor with given reflection environment
     func Create() -> Extractor;

@@ -6,41 +6,41 @@
 class SailGate::Prelude is
     type Logic_Val is Enum<[#false, #true, #x, #z, #dont_care]>;
 exports
-    func Has_Clock(D : Domain_Kind) -> Boolean is
+    func Clock(D : Domain_Kind) -> Boolean is
         case D of
             [#clock | #clock_reset | #clock_reset_en] => return #true;
             [..] => return #false;
         end case
-    end func Has_Clock
+    end func Clock
 
-    func Has_Reset(D : Domain_Kind) -> Boolean is
+    func Reset(D : Domain_Kind) -> Boolean is
         case D of
             [#clock_reset | #clock_reset_en] => return #true;
             [..] => return #false;
         end case
-    end func Has_Reset
+    end func Reset
 
-    func Has_Enable(D : Domain_Kind) -> Boolean is
+    func Clk_Rst_En(D : Domain_Kind) -> Boolean is
         case D of
             [#clock_reset_en] => return #true;
             [..] => return #false;
         end case
-    end func Has_Enable
+    end func Clk_Rst_En
 
     class Domain is
         const Kind : Domain_Kind;
         const Name : Univ_Enumeration;
     exports
         func Has_Clock(D : Domain) -> Boolean is
-            return Has_Clock(D.Kind);
+            return Clock(D.Kind);
         end func Has_Clock
 
         func Has_Reset(D : Domain) -> Boolean is
-            return Has_Reset(D.Kind);
+            return Reset(D.Kind);
         end func Has_Reset
 
         func Has_Enable(D : Domain) -> Boolean is
-            return Has_Enable(D.Kind);
+            return Clk_Rst_En(D.Kind);
         end func Has_Enable
 
         func Get_Async() -> Domain is

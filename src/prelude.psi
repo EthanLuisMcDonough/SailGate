@@ -5,9 +5,9 @@ interface SailGate::Prelude<> is
     type Natural is Integer<0..2**31-1>;
 
     type Domain_Kind is Enum<[#async, #clock, #clock_reset, #clock_reset_en]>;
-    func Has_Clock(D : Domain_Kind) -> Boolean;
-    func Has_Reset(D : Domain_Kind) -> Boolean;
-    func Has_Enable(D : Domain_Kind) -> Boolean;
+    func Clock(D : Domain_Kind) -> Boolean;
+    func Reset(D : Domain_Kind) -> Boolean;
+    func Clk_Rst_En(D : Domain_Kind) -> Boolean;
 
     /// Object representing a value's clock domain
     interface Domain<> is

@@ -22,4 +22,13 @@ interface SailGate::Sema::Util<> is
 
     /// Gets call operation. Checks call tree for chosen interp
     func Get_Call_Operation(T : Tree) -> optional Decl;
+
+    /// Checks tree and resolved interp for type descriptor
+    func Get_Resolved_Type(T : Tree) -> optional Type_Descriptor;
+
+    /// Same as Get_Resolved_Type, but for semantic info
+    func Get_Sem_Info(T : Tree) -> optional Decl;
+
+    /// Same as Get_Resolved_Type, but for symbols
+    func Get_Symbol(T : Tree) -> optional Symbol;
 end interface SailGate::Sema::Util

@@ -10,67 +10,6 @@ import SailGate::Util::Result;
 class SailGate::Sema::Reader is
     type Align_Result is Result<IR::Alignment, Sema_Error>;
 
-    /// Extracts the clock domain info from a type parameter
-    func Read_Type_Dom(Info : Param_Info) -> optional IR::Domain is
-        if Info.Kind != #formal_object then
-            return null;
-        end if
-
-        const LCCV := Large_Const_Component_Values(Info.Data);
-        if |LCCV| != 2 then
-            return null;
-        end if
-
-        if LCCV[1] > 3 then
-            return null;
-        end if
-        const Dom_Kind : Prelude::Domain_Kind := (case LCCV[1] of
-            [0] => #async;
-            [1] => #clock;
-            [2] => #clock_reset;
-            [..] => #clock_reset_en);
-        const Dom_Name : Univ_Enumeration := Interpret_As_Univ_Enum(LCCV[2]);
-
-        return (Kind => Dom_Kind, Name => Dom_Name);
-    end func Read_Type_Dom
-
-    /// Convert ParaSail type descriptor into RTL scalar type
-    func Scalar_To_Rtl(Type : Type_Descriptor; S : IR::Scalar_Type) -> optional IR::Full_Type is
-        const Type_Params := Parameters(Type);
-        if |Type_Params| == 0 then
-            return null;
-        end if
-
-        const Dom := Read_Type_Dom(Type_Params[1]);
-        if Dom is null then
-            return null;
-        end if
-
-        return (Val => IR::Type::Create(S), Dom => Dom);
-    end func Scalar_To_Rtl
-
-    /// Convert ParaSail type descriptor into RTL vector type
-    func Vec_To_Rtl(Type : Type_Descriptor; V : IR::Vec_Type::Type_Kind) -> optional IR::Full_Type is
-        const Type_Params := Parameters(Type);
-        if |Type_Params| < 2 then
-            return null;
-        end if
-
-        const Num_Param := Type_Params[1];
-        if Num_Param.Kind != #formal_object then
-            return null;
-        end if
-        const Vec_Size := Num_Param.Data.Value;
-
-        const Dom := Read_Type_Dom(Type_Params[2]);
-        if Dom is null then
-            return null;
-        end if
-
-        return (Val => IR::Type::Create(V, Vec_Size), Dom => Dom);
-    end func Vec_To_Rtl
-
-
     /// Read alignment clause from annotation metadata
     func Read_Alignment(D : Tree {Kind(D) == #annotation}) -> Align_Result is
         const Anno_Source := Util::Find_Tree_Source(D);
@@ -127,48 +66,220 @@ class SailGate::Sema::Reader is
             Offset := Int_Val;
         end loop
 
-        return Align_Result::Ok((Dir => Dir, Offset => Offset));
+        return Align_Result::Ok((Dir => Dir, Offset => Offset,
+            Source => Anno_Source));
     end func Read_Alignment
+
+    /// Reads domain out from type actual parameter. This is
+    /// effectively a wrapper around Dom_Obj and Dom_Param
+    func Read_Dom_Param(T : Tree) -> Domain_Result is
+        const Sym := Util::Get_Symbol(T);
+        const Src := Util::Find_Tree_Source(T);
+        const Sym_Def := Definition(Sym);
+        const Def_Decl := Decl_Of(Sym_Def);
+
+        case Kind(Sym) of
+            [#object_sym_kind] =>
+                {Def_Decl not null and Kind(Def_Decl) == #object}
+                return Dom_Obj(Def_Decl);
+            [#param_sym_kind] =>
+                {Def_Decl not null and Kind(Def_Decl) == #object}
+                return Dom_Param(Def_Decl);
+        end case
+
+        return Domain_Result::Err((Source => Src,
+            Kind => #invalid_dom_arg));
+    end func Read_Dom_Param
 exports
-    func Type_To_Rtl(Type : Type_Descriptor) -> optional IR::Full_Type is
-        if Type is null or else Is_Polymorphic(Type) then
-            return null;
+    func Dom_Param(D : Decl) -> Domain_Result is
+        const Dom_Name := Util::Get_Decl_Name(D);
+        var Dom_Kind : Prelude::Domain_Kind := #async;
+        const T := Tree_Of(D);
+        {Kind(T) == #param_decl}
+
+        const Param_Type := Nth_Operand(T, Tree::Param_Decl_Type_Op);
+
+        // Check that param is of correct type
+        const Param_Desc := Resolved_Type(T);
+        if Param_Desc is null or else Name(Param_Desc) != Names::Types::Domain then
+            return Domain_Result::Err((
+                Source => Util::Find_Tree_Source(Param_Type),
+                Kind => #invalid_param_dom_type));
         end if
+
+        // Check that param has no initial value
+        const Param_Init := Nth_Operand(T, Tree::Param_Decl_Value_Op);
+        if Param_Init not null then
+            return Domain_Result::Err((
+                Source => Util::Find_Tree_Source(Param_Init),
+                Kind => #invalid_param_dom_init));
+        end if
+
+        // Check param annotation. We should see either nothing or a call to
+        // Clock, Clock_En, or Clock_Reset_En with the domain as the parameter
+        const Dom_Constr := Post_Annotation(T);
+        if Dom_Constr not null then
+            const Call_Err : Sema_Error := (Kind => #invalid_param_dom_constr,
+                Source => Util::Find_Tree_Source(Dom_Constr));
+
+            if Num_Operands(Dom_Constr) != 1 then
+                return Domain_Result::Err(Call_Err);
+            end if
+
+            // Return error if we don't find a call that fits
+            const Call := Nth_Operand(Dom_Constr, 1);
+            if Kind(Call) != #invocation or else Num_Operands(Call) != 2 then
+                return Domain_Result::Err(Call_Err);
+            end if
+
+            // The resolved interp for this annotation is going to be
+            // null because it is never resolved by ParaSail.
+            // This is fixed by one of my pull requests in review,
+            // but for now:
+            const Call_Func := Nth_Operand(Call, 1);
+            case Identifier(Call_Func) of
+                [Names::Functions::Clock | "Prelude::Clock" | "Clock"] =>
+                    Dom_Kind := #clock;
+                [Names::Functions::Reset | "Prelude::Reset" | "Reset"] =>
+                    Dom_Kind := #clock_reset;
+                [Names::Functions::Clk_Rst_En | "Prelude::Clk_Rst_En" | "Clk_Rst_En"] =>
+                    Dom_Kind := #clock_reset_en;
+                [..] =>
+                    return Domain_Result::Err(Call_Err);
+            end case
+
+            // First and only operand must be the domain defined by the param
+            const Call_Op := Nth_Operand(Call, 2);
+            if Kind(Call_Op) != #identifier or else Identifier(Call_Op) != Id(D) then
+                return Domain_Result::Err(Call_Err);
+            end if
+        end if
+
+        return Domain_Result::Ok((Name => Id(D),
+            Kind => Dom_Kind, Full_Name => Dom_Name));
+    end func Dom_Param
+
+    func Dom_Obj(D : Decl) -> Domain_Result is
+        const T := Tree_Of(D);
+        const Dom_Name := Util::Get_Decl_Name(D);
+        const Desc := Resolved_Type(T);
+        const Obj_Err := Domain_Result::Err((
+            Kind => #invalid_dom_obj,
+            Source => Decl_Source_Pos(D)));
+
+        // Makes sure the type is right. We should have a type desc for this
+        if Name(Desc) != Names::Types::Domain then
+            return Obj_Err;
+        end if
+
+        // Make sure our domain is a call
+        const Obj_Value := Nth_Operand(T, Tree::Obj_Decl_Value_Op);
+        if Obj_Value is null or else Kind(Obj_Value) != #invocation then
+            return Obj_Err;
+        end if
+
+        const Obj_Val_Resolved := Resolved_Interp(Obj_Value);
+        if Obj_Val_Resolved is null then
+            return Obj_Err;
+        end if
+
+        // Find out which call they made. This determines the domain type
+        const Obj_Val_Call := Call_Operation(Obj_Val_Resolved);
+        var Dom_Kind : Prelude::Domain_Kind := #async;
+        case Util::Get_Decl_Name(Obj_Val_Call) of
+            [Names::Functions::Clock_Create] =>
+                Dom_Kind := #clock;
+            [Names::Functions::Reset_Create] =>
+                Dom_Kind := #clock_reset;
+            [Names::Functions::Clk_Rst_En_Create] =>
+                Dom_Kind := #clock_reset_en;
+            [Names::Functions::Async_Create] =>
+                Dom_Kind := #async;
+            [..] =>
+                return Obj_Err;
+        end case
+
+        return Domain_Result::Ok((Name => Id(D), 
+            Kind => Dom_Kind, Full_Name => Dom_Name));
+    end func Dom_Obj
+
+    func Type_Is_Rtl(D : Decl) -> Boolean is
+        const Type_Mod := Associated_Module(D);
+        const Type_Mod_Name := Util::Get_Decl_Name(Type_Mod);
+        case Type_Mod_Name of
+            [Names::Types::Logic | Names::Types::Bool |
+                    Names::Types::SVec | Names::Types::UVec |
+                    Names::Types::LVec] =>
+                return #true;
+            [..] =>
+                return #false;
+        end case
+    end func Type_Is_Rtl
+
+    func Type_To_Rtl(D : Decl; Pos : Source_Position) -> Type_Result is
+        const Type_Mod := Associated_Module(D);
+        const Type_Mod_Name := Util::Get_Decl_Name(Type_Mod);
+        const Type_Params := Trees_Of_Actuals(D);
 
         var Scalar_Type : optional IR::Scalar_Type := null;
-        const TN := Name(Type);
-
-        if Starts_With(TN, Names::Types::Logic) then
-            Scalar_Type := #logic;
-        elsif Starts_With(TN, Names::Types::Bool) then
-            Scalar_Type := #bool;
-        end if
+        case Type_Mod_Name of
+            [Names::Types::Logic] =>
+                Scalar_Type := #logic;
+            [Names::Types::Bool] =>
+                Scalar_Type := #bool;
+        end case
 
         if Scalar_Type not null then
-            return Scalar_To_Rtl(Type, Scalar_Type);
+            const Dom_Tree := Type_Params[1];
+            const Dom_Err := Read_Dom_Param(Dom_Tree);
+            if Is_Err(Dom_Err) then
+                return Type_Result::Err(Err(Dom_Err));
+            end if
+            const Type := IR::Type::Create(Scalar_Type,
+                Ok(Dom_Err), Pos);
+            return Type_Result::Ok(Type);
         end if
 
         var Vec_Type : IR::Vec_Type::Type_Kind := #logic;
-        if Starts_With(TN, Names::Types::SVec) then
-            Vec_Type := #int;
-        elsif Starts_With(TN, Names::Types::UVec) then
-            Vec_Type := #uint;
-        elsif not Starts_With(TN, Names::Types::LVec) then
-            return null; 
+        case Type_Mod_Name of
+            [Names::Types::SVec] =>
+                Vec_Type := #int;
+            [Names::Types::UVec] =>
+                Vec_Type := #uint;
+            [Names::Types::LVec] =>
+                Vec_Type := #logic;
+            [..] =>
+                return Type_Result::Err((Source => Pos,
+                    Kind => #invalid_rtl_type));
+        end case
+
+        const Size_Tree := Type_Params[1];
+        var Size := Read_Const_Int(Size_Tree);
+        if Size is null then
+            return Type_Result::Err((Source => Pos,
+                Kind => #invalid_rtl_type));
         end if
 
-        return Vec_To_Rtl(Type, Vec_Type);
+        const Dom_Tree := Type_Params[2];
+        const Dom_Err := Read_Dom_Param(Dom_Tree);
+        if Is_Err(Dom_Err) then
+            return Type_Result::Err(Err(Dom_Err));
+        end if
+
+        const Type := IR::Type::Create(Vec_Type,
+            Size, Ok(Dom_Err), Pos);
+        return Type_Result::Ok(Type);
     end func Type_To_Rtl
 
     /// Read alignment and add it to type
-    func Add_Alignment(var T : IR::Full_Type; Align_Tree : optional Tree)
+    func Add_Alignment(var T : IR::Type; Align_Tree : optional Tree)
             -> optional Sema_Error is
         if Align_Tree is null then
             return;
         end if
 
         const Align_Source := Util::Find_Tree_Source(Align_Tree);
-        if T.Val.Kind != #vec then
+        if T.Kind != #vec then
             return (Kind => #field_non_vec_align, Source => Align_Source);
         end if
 
@@ -177,11 +288,12 @@ exports
             return Unwrap_Err(Alignment_Result);
         end if
 
-        const Vec_Type := Get_Vec(T.Val);
+        const Vec_Type := Get_Vec(T);
         const Alignment := Ok(Alignment_Result);
 
-        const New_Type := IR::Type::Create(Vec_Type.Kind, Vec_Type.Size, Alignment);
-        T := (Dom => T.Dom, Val => New_Type);
+        const New_Type := IR::Type::Create(Vec_Type.Kind, Vec_Type.Size,
+            T.Dom, T.Source, Alignment);
+        T := New_Type;
     end func Add_Alignment
 
     func Read_Const_Int(T : Tree) -> optional Univ_Integer is
@@ -220,5 +332,4 @@ exports
 
         return null;
     end func Read_Const_Int
-
 end class SailGate::Sema::Reader

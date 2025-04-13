@@ -1,0 +1,51 @@
+import SailGate::IR;
+import SailGate::Sema::*;
+import SailGate::Prelude::Domain_Kind;
+import SailGate::Util::Result;
+import PSC::Reflection;
+
+interface SailGate::Sema::IR_Builder<> is
+    interface Entity_Builder<> is
+        type Build_Result is Result<IR::Entity, Sema_Error>;
+        type Type_Result is Result<IR::Type, Sema_Error>;
+
+        func Create(Name : Univ_String) -> Entity_Builder;
+
+        /// Adds clock domain parameter to entity. This should not be called
+        /// if Add_Clock_Obj is also called.
+        func Add_Clock_Param(var E : Entity_Builder; Dom : IR::Domain);
+
+        /// Adds clock domain object to top level entity. Returns error if
+        /// entity is not top level
+        func Add_Clock_Obj(var E : Entity_Builder; Dom : IR::Domain)
+            -> optional Sema_Error;
+
+        /// Reads an RTL type. This function isn't in the reader class because
+        /// it takes the entity's clock domain scope into account.
+        func Read_Type(E : Entity_Builder; T : Reflection::Tree) -> Type_Result;
+
+        func Add_Input(var E : Entity_Builder;
+            Name : Univ_String;
+            Type : IR::Type) -> optional Sema_Error;
+
+        func Add_Output(var E : Entity_Builder;
+            Name : Univ_String;
+            Type : IR::Type) -> optional Sema_Error;
+
+        func Add_Register(var E : Entity_Builder;
+            Name : Univ_String;
+            Type : IR::Type {Valid_Field_Type(Type)};
+            Init : optional Reflection::Tree := null) 
+                -> optional Sema_Error;
+
+        func Add_Wire(var E : Entity_Builder;
+            W : IR::Wire) -> optional Sema_Error;
+
+        func Output_Assign(var E : Entity_Builder;
+            Name : Univ_String;
+            T : Reflection::Tree) -> optional Sema_Error;
+
+        func Build(E : Entity_Builder) -> IR::Entity;
+    end interface Entity_Builder
+
+end interface SailGate::Sema::IR_Builder

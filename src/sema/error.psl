@@ -2,6 +2,10 @@ import PSC::Reflection;
 
 class SailGate::Sema::Sema_Error is
 exports
+    op "from_univ"(U : Univ_Enumeration) -> Sema_Error is
+        return (Kind => U, Source => null);
+    end op "from_univ"
+
     func With_Source(E : Sema_Error;
             New_Source : Reflection::Source_Position) -> Sema_Error is
         return (Kind => E.Kind, Source => New_Source);
@@ -18,12 +22,28 @@ exports
             [#invalid_field_type] => Println("Invalid field type. Field must be a realized RTL type");
             [#mutable_field] => Println("Invalid field mutability. Field must be constant");
             [#ref_field_type] => Println("Invalid field type. Field cannot be ref");
+            [#optional_field] => Println("Invalid field type. Field cannot be optional");
             [#field_init_val] => Println("Entity field cannot have initial value");
             [#field_non_vec_align] => Println("Only vector fields can have align clauses");
             [#invalid_inst] => Println("Invalid instruction");
             [#invalid_anno] => Println("Invalid align clause");
             [#non_const_val] => Println("Value must be a compile-time known literal");
-            [#invalid_run_return] => Println("Invalid \"Run\" method. Run must return the entity type")
+            [#invalid_run_return] => Println("Invalid \"Run\" method. Run must return the entity type");
+            [#invalid_param_dom_type] => Println("Invalid param type. Param must be SailGate domain");
+            [#invalid_param_dom_init] => Println("Type param cannot have initial type");
+            [#invalid_param_dom_constr] => Println("Invalid param type constraint. Annotation must be a call to " |
+                "either Prelude::Clock, Prelude::Reset, or Prelude::Clk_Rst_En. The only argument passed must be" |
+                "the corresponding clock domain parameter");
+            [#invalid_dom_obj] => Println("Invalid clock domain definition. Clock domain must be a constant " |
+                "field of type Prelude::Domain and must be a call to either Domain::Clock, Domain::Clock_Reset,"|
+                " or Domain::Clock_Reset_Enable");
+            [#dom_obj_in_abstract] => Println("Explicit domain object definitions are only allowed in top " |
+                "level entities");
+            [#no_run_fn] => Println("Entity has no \"Run\" method");
+            [#invalid_dom_arg] => Println("Invalid domain object passed into type");
+            [#invalid_rtl_type] => Println("Invalid type. Expected RTL type (Logic, Vec, UVec, IVec)");
+            [#domain_out_of_scope] => Println("Domain referenced is out of scope. An entity can only " |
+                "use clock domains defined inside of it")
         end case
     end func Dump
 end class SailGate::Sema::Sema_Error

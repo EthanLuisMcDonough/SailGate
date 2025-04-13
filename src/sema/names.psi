@@ -2,14 +2,28 @@ interface SailGate::Sema::Names<> is
     const Prefix := "SailGate::Prelude::";
 
     interface Types<> is
-        const Bool := Prefix | "Rtl_Bool<";
-        const Logic := Prefix | "Logic<";
-        const LVec := Prefix | "Vec<";
-        const SVec := Prefix | "IVec<";
-        const UVec := Prefix | "UVec<";
+        // Annotation types
+        const Domain := Prefix | "Domain";
+        const Async := Prefix | "Async";
+
+        /// RTL types
+        const Bool := Prefix | "Rtl_Bool";
+        const Logic := Prefix | "Logic";
+        const LVec := Prefix | "Vec";
+        const SVec := Prefix | "IVec";
+        const UVec := Prefix | "UVec";
     end interface Types
 
     interface Functions<> is
+        // Annotation functions
+        const Clock := Prefix | "Clock";
+        const Reset := Prefix | "Reset";
+        const Clk_Rst_En := Prefix | "Clk_Rst_En";
         const Align := Prefix | "Align";
+
+        const Async_Create := Types::Domain | "::Get_Async";
+        const Clock_Create := Types::Domain | "::Clock";
+        const Reset_Create := Types::Domain | "::Clock_Reset";
+        const Clk_Rst_En_Create := Types::Domain | "::Clock_Reset_Enable";
     end interface Functions
 end interface SailGate::Sema::Names

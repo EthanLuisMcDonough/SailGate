@@ -12,7 +12,9 @@ class SailGate::Sema::Debug is
         for I in 1..Num_Items(R) forward loop
             const Next_Item := R.Nth_Item(I);
             const Next_Name := Util::Get_Decl_Name(Next_Item);
-            Println("   - " | Next_Name | " (" | To_String(Kind(Next_Item)) | ")");
+            const T := Tree_Of(Next_Item);
+            Println("   - " | Next_Name | " (" | To_String(Kind(Next_Item)) |
+                ") (" | To_String(Kind(T)) | ")");
         end loop
     end func Dump_Decl_Region
 exports
@@ -21,6 +23,7 @@ exports
         const This_Mod := Module_Name(D);
         Println("=== DECL " | Name | " (" | To_String(Kind(D)) | ") ===");
         Dump_Decl_Region(D, Decl_Region(D), "Decl");
+        Dump_Decl_Region(D, Body_Region(D), "Body");
     end func Dump
 
     func Dump(T : Type_Descriptor) is
@@ -83,9 +86,39 @@ exports
             Ln |= "(" | Identifier(T) | ")";
         end if
 
-        var Typ := Resolved_Type(T);
+        var Typ := Sema::Util::Get_Resolved_Type(T);
         if Typ not null then
             Ln |= "(" | Name(Typ) | ")";
+        end if
+
+        const Sym := Sema::Util::Get_Symbol(T);
+        if Sym not null then
+            Ln |= "(Sym : " | Full_Name(Sym) | ")";
+        end if
+
+        const SI := Sema::Util::Get_Sem_Info(T);
+        if SI not null then
+            Ln |= "(SI : " | Id(Associated_Module(SI)) | ")";
+
+            // const Actuals := Trees_Of_Actuals(SI);
+            // for I in 1..|Actuals| forward loop
+            //     Dump(Actuals[I]);
+            //     null;
+            // end loop
+
+            // Println(To_String(Kind(Tree_Of(SI))));
+            // const SIT := Tree_Of(SI);
+            // for I in 1..Num_Operands(SIT) forward loop
+            //     Debug::Dump(Nth_Operand(SIT, I));
+            // end loop
+
+            // const SIR := Generic_Param_Region(Associated_Module(SI));
+            // if SIR not null then
+            //     Println("FOUND SIR");
+            //     for I in 1..Num_Trees(SIR) forward loop
+            //         Dump(Nth_Tree(SIR, I));
+            //     end loop
+            // end if
         end if
 
         const Loc := Sema::Util::Find_Tree_Source(T);

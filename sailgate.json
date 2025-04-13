@@ -13,6 +13,7 @@
         "sema/error.psi",
         "sema/util.psi",
         "sema/reader.psi",
+        "sema/ir_builder.psi",
         "sema/validator.psi",
         "sema/extractor.psi",
         "driver.psi"

@@ -1,14 +1,18 @@
 import PSC::Reflection;
+import PSC::Reflection::Source_Position;
 import SailGate::Prelude;
 
 interface SailGate::IR<> is
     type Scalar_Type is Enum<[#logic, #bool]>;
+    type Pos is optional Source_Position;
 
     interface Alignment<> is
         const Dir : Prelude::Vec_Dir;
         const Offset : Prelude::Natural;
+        const Source : Pos;
 
-        const Default := Alignment::(Dir => #default, Offset => 0);
+        const Default := Alignment::(Dir => #default,
+            Offset => 0, Source => null);
     end interface Alignment
 
     interface Vec_Type<> is
@@ -22,12 +26,29 @@ interface SailGate::IR<> is
         func To_String(V : Vec_Type) -> Univ_String;
     end interface Vec_Type
 
+    /// Our own version of domain for internal use
+    /// The one in prelude is to be used by the end user, so
+    /// it has some additional encapsulation we don't need here
+    interface Domain<> is
+        const Kind : Prelude::Domain_Kind;
+        const Name : Univ_String;
+        const Full_Name : Univ_String;
+
+        func To_String(D : Domain) -> Univ_String;
+    end interface Domain
+
+    /// RTL type qualified with clock domain
     interface Type<> is
         type Type_Kind is Enum<[#scalar, #vec]>;
-        const Kind : Type_Kind;
 
-        func Create(S : Scalar_Type) -> Type;
-        func Create(K : Vec_Type::Type_Kind; S : Univ_Integer {S > 0};
+        const Kind : Type_Kind;
+        const Source : Pos;
+        const Dom : Domain;
+
+        func Create(S : Scalar_Type; Dom : Domain; Source : Pos) -> Type;
+        func Create(K : Vec_Type::Type_Kind;
+            S : Univ_Integer {S > 0};
+            Dom : Domain; Source : Pos;
             A : Alignment := Alignment::Default) -> Type;
 
         func Get_Scalar(T : Type {T.Kind == #scalar}) -> Scalar_Type;
@@ -38,30 +59,166 @@ interface SailGate::IR<> is
         op "=?"(L, R : Type) -> Ordering;
     end interface Type
 
-    /// Our own version of domain for internal use
-    /// The one in prelude is to be used by the end user, so
-    /// it has some additional encapsulation we don't need here
-    interface Domain<> is
-        const Kind : Prelude::Domain_Kind;
-        const Name : Univ_Enumeration;
+    interface Register<> is
+        const Type : Type;
+        const Name : Univ_String;
+        const Init : Univ_String;
+    end interface Register
 
-        func To_String(D : Domain) -> Univ_String;
-    end interface Domain
+    type Port_Def is Ordered_Map<Univ_String, Type>;
+    type Reg_Def is Ordered_Map<Univ_String, Register>;
+    type Scope_Item is Enum<[#input, #register, #wire, #instance, #domain]>;
 
-    /// RTL type qualified with clock domain
-    interface Full_Type<> is
+    type Entity_Scope is Ordered_Map<Univ_String, Scope_Item>;
+    type Domain_Map is Ordered_Map<Univ_String, Domain>;
+
+    type Expr_List is Vector<Expression+>;
+    type Expr_Map is Ordered_Map<Univ_String, Expression+>;
+
+    abstract interface Concurrent_Def<> is
+    end interface Concurrent_Def
+
+    interface Wire<> implements Concurrent_Def<> is
+        const Name : Univ_String;
+        const Wire_Type : Type;
+    end interface Wire
+
+    interface Instance<> implements Concurrent_Def<> is
+        const Name : Univ_String;
+        const Inputs : Expr_Map;
+        const Entity : Univ_String;
+    end interface Instance
+
+    type Concurrent_Defs is Vector<Concurrent_Def+>;
+
+    abstract interface Expression<> is
+        func Get_Type(E : Expression) -> Type;
+    end interface Expression
+
+    interface Identifier<> implements Expression<> is
+        const Original_Name : Univ_String;
+        const Name : Univ_String;
+        const Type : Type;
+
+        func Get_Type(I : Identifier) -> Type is (I.Type);
+    end interface Identifier
+
+    type Comapre_Op is Enum<[#less_op, #leq_op,
+        #equal_op, #neq_op, #geq_op, #greater_op]>;
+    type Binary_Op is Enum<[#plus_op, #minus_op, #times_op,
+        #divide_op, #combine_op, #left_shift_op, #right_shift_op,
+        #and_op, #or_op, #xor_op]>
+    type Unary_Op is Enum<[#not_op]>;
+
+    interface Comparison<> implements Expression<> is
+        const Left : Expression+;
+        const Right : Expression+;
+        const Op : Comapre_Op;
+
+        func Get_Type(I : Identifier) -> Type;
+    end interface Comparison
+
+    interface Binary<> implements Expression<> is
+        const Left : Expression+;
+        const Right : Expression+;
+        const Op : Binary_Op;
+
+        func Get_Type(B : Binary) -> Type;
+    end interface Binary
+
+    interface Unary<> implements Expression<> is
+        const Value : Expression+;
+        const Op : Unary_Op;
+
+        func Get_Type(U : Unary) -> Type is (Get_Type(U.Value));
+    end interface Unary
+
+    interface Slice<> implements Expression<> is
+        const Start : Univ_Integer;
+        const End : Univ_Integer;
+        const Value : Expression+;
+
+        func Get_Type(U : Unary) -> Type;
+    end interface Slice
+
+    interface Index<> implements Expression<> is
+        const Index : Univ_Integer;
+        const Value : Expression+;
+
+        func Get_Type(U : Unary) -> Type;
+    end interface Index
+
+    interface Concat<> implements Expression<> is
+        const Index : Univ_Integer;
+        const Value : Expression+;
+
+        func Get_Type(U : Unary) -> Type;
+    end interface Concat
+
+    interface Invocation<> implements Expression<> is
+        const Func_Name : Univ_String;
+        const Args : Vector<Expression+>;
+    end interface Invocation
+
+    abstract interface Statement<> is
+    end interface Statement
+
+    type Block is Vector<Statement+>;
+
+    interface Condition_Body<> is
+        const Condition : Expression+;
+        const Body : Block;
+    end interface Condition_Body
+
+    interface Assignment<> implements Statement<> is
+        const Asignee : Expression+;
+        const Value : Expression+;
+    end interface Assignment
+
+    interface If_Chain<> implements Statement<> is
+        const Base : Condition_Body;
+        const Elifs : Vector<Condition_Body>;
+        const Else : optional Block;
+    end interface If_Chain
+
+    interface Case_Check<> is
+        const Values : Vector<Univ_String>;
+    end interface Case_Check
+
+    interface Switch_Case<> implements Statement<> is
+
+    end interface Switch_Case
+
+    interface Process<> is
         const Dom : Domain;
-        const Val : Type;
+        const Body : Block;
+        const List : Vector<Univ_String>;
+    end interface Process
 
-        func To_String(F : Full_Type) -> Univ_String;
-    end interface Full_Type
+    type Implicit_Processes is Ordered_Map<Univ_String, Process>;
+    type Processes is Vector<Process>;
+
+    /// Local signature used by entity
+    interface Component<> is
+        const Full_Name : Univ_String;
+        const Dom_Args : Ordered_Map<Univ_String, Univ_String>;
+    end interface Component
 
     interface Entity<> is
-        type Port_Def is Map<Univ_String, Full_Type>;
+        const Scope : Entity_Scope;
+        const Name : Univ_String;
+        const Is_Top_Level : Boolean;
 
         const Inputs : Port_Def;
         const Outputs : Port_Def;
-        const Domains : Map<Univ_String, Domain>;
-        const Behavior : Reflection::Routine;
+        const Output_Values : Expr_Map;
+        const Registers : Reg_Def;
+        const Components : Vector<Component>;
+
+        const Domains : Domain_Map;
+        const Impl : Implicit_Processes;
+        const Expl : Processes;
+        const Test_Bench : optional Process;
+        const Concurrent : Concurrent_Defs;
     end interface Entity
 end interface SailGate::IR

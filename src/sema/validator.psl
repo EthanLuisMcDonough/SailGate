@@ -5,120 +5,179 @@ import SailGate::IR;
 import SailGate::Sema;
 import SailGate::Sema::Reader;
 import SailGate::Sema::Names;
+import SailGate::Sema::IR_Builder::*;
 
 class SailGate::Sema::Validator is
     type Entity_Result is Result<Univ_String, Sema_Error>;
 
-    /// Traverses Decl AST and inserts valid entity rep into the entity map
-    func Check(var V : Validator; D : Extractor::Raw_Entity_Data) -> Entity_Result is
-        Println("Visiting " | D.Name);
+    func Check_Tree(var V : Validator; var B : Entity_Builder; T : Reflection::Tree) -> optional Sema_Error is
+        {#false}
+    end func Check_Tree
 
-        // Gather inputs
-        const Run_Params := Parameters(D.Arch);
-        var Inputs : IR::Entity::Port_Def := [];
+    func Check_Body(var V : Validator; var B : Entity_Builder; R : Reflection::Region) -> optional Sema_Error is
+        for I in 1..Num_Trees(R) forward loop
+            const Tree := Nth_Tree(R, I);
+            const Tree_Err := Check_Tree(V, B, Tree);
+            if Tree_Err not null then
+                return Tree_Err;
+            end if
+        end loop
+    end func Check_Body
+
+    /// Read top level entity from raw entity data
+    func Check_Entity(var V : Validator; D : Extractor::Module_Desc) -> optional Sema_Error is
+        var Builder := Entity_Builder::Create(D.Name);
+        const Decl_Src := Decl_Source_Pos(D.Decl);
+
+        // Get entity "Run" routine
+        if |D.Operations| != 1 or else "Run" not in D.Operations then
+            return (Kind => #no_run_fn, Source => Decl_Src);
+        end if
+        const Run_Op := D.Operations["Run"];
+
+        // Read parameter clock domain arguments
+        for each [Name => Domain_Param] of D.Params forward loop
+            const R := Reader::Dom_Param(Domain_Param);
+            if Is_Err(R) then
+                return Err(R);
+            end if
+            Add_Clock_Param(Builder, Ok(R));
+        end loop
+
+        // Read top level entity domains 
+        for each [Name => Domain_Obj] of D.Objects forward loop
+            const Obj_Src := Decl_Source_Pos(Domain_Obj);
+            const Obj_Err := Reader::Dom_Obj(Domain_Obj);
+            if Is_Err(Obj_Err) then
+                return Err(Obj_Err);
+            end if
+
+            const Add_Err := Add_Clock_Obj(Builder, Ok(Obj_Err));
+            if Add_Err not null then
+                return With_Source(Add_Err, Obj_Src);
+            end if
+        end loop
+
+        // Process entity inputs (run function parameters)
+        const Run_Params := Parameters(Run_Op.Routine);
         for I in 1..|Run_Params| forward loop
-            const P := Run_Params[I];
-            const P_Decl := P.Param_Decl;
-            const P_Tree := Tree_Of(P_Decl);
-            const P_Source := Decl_Source_Pos(P_Decl);
-            const P_Name := Id(P_Decl);
+            const Param := Run_Params[I];
+            const Param_Decl := Param.Param_Decl;
+            const Param_Tree := Tree_Of(Param_Decl);
+            const Param_Source := Decl_Source_Pos(Param_Decl);
+            const Param_Name := Id(Param_Decl);
+            {Kind(Param_Tree) == #param_decl}
 
-            if P.Is_Operation_Output then
-                if not P.Is_Of_Current_Inst_Type then
-                    return Entity_Result::Err((
-                        Kind => #invalid_run_return,
-                        Source => P_Source));
+            if Param.Is_Operation_Output then
+                if not Param.Is_Of_Current_Inst_Type then
+                    return (Kind => #invalid_run_return,
+                        Source => Param_Source);
                 end if
             else
-                if P.Is_Var then
-                    return Entity_Result::Err((
-                        Kind => #mutable_field,
-                        Source => P_Source));
+                const SI := Sem_Info(Param_Tree);
+
+                // Check for ref/var/optional field values
+                // These types of declarations are not allowed
+                // for entity fields
+                if Param.Is_Passed_By_Ref then
+                    return (Kind => #ref_field_type,
+                        Source => Param_Source);
                 end if
 
-                if P.Is_Passed_By_Ref then
-                    return Entity_Result::Err((
-                        Kind => #ref_field_type,
-                        Source => P_Source));
+                if Param.Is_Var then
+                    return (Kind => #mutable_field,
+                        Source => Param_Source);
                 end if
 
-                const Type_Desc := Type_Desc_At_Locator(P.Type_Info);
-                var Rtl_Type := Reader::Type_To_Rtl(Type_Desc);
-                if P.Is_Optional or else Rtl_Type is null or else
-                        not Valid_Field_Type(Rtl_Type.Val) then
-                    return Entity_Result::Err((
-                        Kind => #invalid_field_type,
-                        Source => P_Source));
+                if Param.Is_Optional then
+                    return (Kind => #optional_field,
+                        Source => Param_Source);
                 end if
+
+                // Check for initial value (not allowed for inputs)
+                if Nth_Operand(Param_Tree, Reflection::Tree::Param_Decl_Value_Op)
+                        not null then
+                    return (Kind => #field_init_val, Source => Param_Source);
+                end if
+
+                const Param_Type_Err := Reader::Type_To_Rtl(SI, Param_Source);
+                if Is_Err(Param_Type_Err) then
+                    return Err(Param_Type_Err);
+                end if
+                var Param_Type := Ok(Param_Type_Err);
 
                 // Parse align clause
-                const Align_Stmt := Pre_Annotation(P_Tree);
-                const Align_Err := Reader::Add_Alignment(Rtl_Type, Align_Stmt);
+                const Align_Stmt := Pre_Annotation(Param_Tree);
+                const Align_Err := Reader::Add_Alignment(Param_Type, Align_Stmt);
                 if Align_Err not null then
-                    return Entity_Result::Err(Align_Err);
+                    return Align_Err;
                 end if
 
-                Inputs |= (Key => P_Name, Value => Rtl_Type);
+                // Add input
+                const Input_Err := Add_Input(Builder, Param_Name, Param_Type);
+                if Input_Err not null then
+                    return Input_Err;
+                end if
             end if
         end loop
 
-        // Gather outputs
-        // Each output should be an obj_decl tree with a null value
-        const Comp := Components(D.Desc);
-        var Outputs : IR::Entity::Port_Def := [];
-        for I in 1..|Comp| forward loop
-            var Rtl_Type := Reader::Type_To_Rtl(Comp[I].Type_Desc);
-            const Comp_Decl := Comp[I].Component_Decl;
-            const Comp_Source := Decl_Source_Pos(Comp_Decl);
-            const Comp_Tree := Tree_Of(Comp_Decl);
-            const Comp_Name := Id(Comp_Decl);
-
+        // Process entity outputs (entity module fields)
+        for each [Name => Component] of D.Components forward loop
+            const Comp_Tree := Tree_Of(Component);
+            const Comp_Source := Decl_Source_Pos(Component);
+            const SI := Sem_Info(Comp_Tree);
             {Kind(Comp_Tree) == #obj_decl}
 
+            // Check for ref/var/optional field values
+            // These types of declarations are not allowed
+            // for entity fields
+            if Obj_Decl_Is_Ref(Comp_Tree) then
+                return (Kind => #ref_field_type,
+                    Source => Comp_Source);
+            end if
+
+            if Obj_Decl_Is_Var(Comp_Tree) then
+                return (Kind => #mutable_field,
+                    Source => Comp_Source);
+            end if
+
+            if Obj_Decl_Is_Optional(Comp_Tree) then
+                return (Kind => #optional_field,
+                    Source => Comp_Source);
+            end if
+
+            // Check for initial value (not allowed for outputs)
             if Nth_Operand(Comp_Tree, Reflection::Tree::Obj_Decl_Value_Op)
                     not null then
-                return Entity_Result::Err((
-                    Kind => #field_init_val,
-                    Source => Comp_Source));
+                return (Kind => #field_init_val,
+                    Source => Comp_Source);
             end if
 
-            // Parse align clause
-            const Align_Stmt := Pre_Annotation(Comp_Tree);
-            const Align_Err := Reader::Add_Alignment(Rtl_Type, Align_Stmt);
+            // Read field type
+            const Comp_Type_Err := Reader::Type_To_Rtl(SI,
+                Decl_Source_Pos(Component));
+            if Is_Err(Comp_Type_Err) then
+                return Err(Comp_Type_Err);
+            end if
+            var Comp_Type := Ok(Comp_Type_Err);
+
+            // Read field alignment clause
+            const Align_Err := Reader::Add_Alignment(
+                Comp_Type, Pre_Annotation(Comp_Tree));
             if Align_Err not null then
-                return Entity_Result::Err(Align_Err);
+                return Align_Err
             end if
 
-            if Comp[I].Is_By_Ref then
-                return Entity_Result::Err((
-                    Kind => #ref_field_type,
-                    Source => Comp_Source));
+            // Add output to entity
+            const Output_Err := Add_Output(Builder, Name, Comp_Type);
+            if Output_Err not null then
+                return Output_Err;
             end if
-
-            if Comp[I].Is_Var then
-                return Entity_Result::Err((
-                    Kind => #mutable_field,
-                    Source => Comp_Source));
-            end if
-
-            if Rtl_Type is null or else not Valid_Field_Type(Rtl_Type.Val) then
-                return Entity_Result::Err((
-                    Kind => #invalid_field_type,
-                    Source => Comp_Source));
-            end if
-
-            Outputs |= (Key => Comp_Name, Value => Rtl_Type);
         end loop
 
-        const Base_Name := Name(D.Desc);
-
-        const Entity : IR::Entity := (
-            Inputs => Inputs, Outputs => Outputs,
-            Domains => [], Behavior => D.Arch);
-        V.Entities |= (Key => Base_Name, Value => Entity);
-
-        return Entity_Result::Ok(Base_Name);
-    end func Check
+        const Entity := Build(Builder);
+        V.Entities |= (Key => Entity.Name, Value => Entity);
+    end func Check_Entity
 exports
     func Create() -> Validator is
         return (Entities => []);
@@ -129,9 +188,9 @@ exports
             return (Kind => #no_entity, Source => null);
         end if
         for I in 1..|Ex.Entities| forward loop
-            const Res := Check(V, Ex.Entities[I]);
-            if Is_Err(Res) then
-                return Err(Res);
+            const Entity_Err := Check_Entity(V, Ex.Entities[I]);
+            if Entity_Err not null then
+                return Entity_Err;
             end if
         end loop
     end func Check
@@ -141,11 +200,11 @@ exports
             Println("=== ENTITY " | Name | " ===");
             Println("Inputs: ");
             for each [Input_Name => Input_Type] of Rep.Inputs loop
-                Println(" - " | Input_Name | " " | To_String(Input_Type));
+                Println(" - " | Input_Name | " : " | To_String(Input_Type));
             end loop
             Println("Outputs: ");
             for each [Input_Name => Input_Type] of Rep.Outputs loop
-                Println(" - " | Input_Name | " " | To_String(Input_Type));
+                Println(" - " | Input_Name | " : " | To_String(Input_Type));
             end loop
         end loop
     end func Dump

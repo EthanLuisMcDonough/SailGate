@@ -1,7 +1,7 @@
-import SailGate::Prelude::*;
+import SailGate::Prelude::*, *;
 
-interface Counter_2Bit<> is
-    const D := Domain::Clock(#clk);
+interface Counter_2Bit<D : Domain> is
+    //const D := Domain::Clock(#clk);
 
     const Value : Vec<2, D>;
 
@@ -16,3 +16,18 @@ exports
         return (Value => Logic_Vec(Counter));
     end func Run
 end class Counter_2Bit
+
+interface Test_Counter_2Bit<> is
+    const D2 := Domain::Clock(#clk);
+    const Test_Out : Vec<2, D2>;
+
+    func Run() -> Test_Counter_2Bit;
+end interface Test_Counter_2Bit
+
+class Test_Counter_2Bit is
+exports
+    func Run() -> Test_Counter_2Bit is
+        const Counter := Counter_2Bit::<D2>::Run();
+        return (Test_Out => Counter.Value);
+    end func Run
+end class Test_Counter_2Bit

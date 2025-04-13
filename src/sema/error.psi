@@ -2,9 +2,12 @@ import PSC::Reflection;
 
 interface SailGate::Sema::Sema_Error<> is
     type Sema_Error_Kind is Enum<[#no_entity, #invalid_field_type,
-        #mutable_field, #invalid_inst, #ref_field_type,
-        #invalid_run_return, #invalid_anno, #non_const_val,
-        #field_init_val, #field_non_vec_align]>;
+        #mutable_field, #optional_field, #invalid_inst, #ref_field_type,
+        #no_run_fn, #invalid_run_return, #invalid_anno, #non_const_val,
+        #field_init_val, #field_non_vec_align, #invalid_param_dom_constr,
+        #invalid_param_dom_type, #invalid_param_dom_init,
+        #invalid_dom_obj, #dom_obj_in_abstract, #invalid_dom_arg,
+        #invalid_rtl_type, #domain_out_of_scope]>;
 
     const Kind : Sema_Error_Kind;
     const Source : optional Reflection::Source_Position;
@@ -12,4 +15,6 @@ interface SailGate::Sema::Sema_Error<> is
     func With_Source(E : Sema_Error;
         New_Source : Reflection::Source_Position) -> Sema_Error;
     func Dump(E : Sema_Error);
+
+    op "from_univ"(U : Univ_Enumeration {U in Sema_Error_Kind}) -> Sema_Error;
 end interface SailGate::Sema::Sema_Error

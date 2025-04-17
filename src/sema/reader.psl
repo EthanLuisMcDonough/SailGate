@@ -10,6 +10,12 @@ import SailGate::Util::Result;
 class SailGate::Sema::Reader is
     type Align_Result is Result<IR::Alignment, Sema_Error>;
 
+    const PLUS := "\"+\"";
+    const MINUS := "\"+\"";
+    const MULT := "\"*\"";
+    const DIV := "\"/\"";
+    const FROM_UNIV := "\"from_univ\"";
+
     /// Read alignment clause from annotation metadata
     func Read_Alignment(D : Tree {Kind(D) == #annotation}) -> Align_Result is
         const Anno_Source := Util::Find_Tree_Source(D);
@@ -328,8 +334,38 @@ exports
                 if Lit_Kind(T) not null and then Lit_Kind(T) == #integer_literal then
                     return Univ_Integer::From_String(Identifier(T));
                 end if
-        end case
+            [#invocation] =>
+                const Invoc_Op := Util::Get_Call_Operation(T);
+                const Invoc_Mod := Associated_Module(Invoc_Op);
+                const Func_Id := Id(Invoc_Op);
 
+                // Check for generic "integer" operation invocations
+                case Func_Id of
+                    [PLUS | MINUS | MULT | DIV] =>
+                        const Left := Read_Const_Int(Nth_Operand(T, 2));
+                        const Right := Read_Const_Int(Nth_Operand(T, 3));
+                        if Right not null and then Left not null then
+                            case Func_Id of
+                                [PLUS] => return Left + Right;
+                                [MINUS] => return Left - Right;
+                                [MULT] => return Left * Right;
+                                [DIV] => return Left / Right;
+                            end case
+                        end if
+                    [FROM_UNIV] =>
+                        return Read_Const_Int(Nth_Operand(T, 2));
+                end case
+
+                case Util::Get_Decl_Name(Invoc_Op) of
+                    // Function used to check slice size in prelude
+                    [Names::Functions::Calc_Slice_Size] =>
+                        const Left := Read_Const_Int(Nth_Operand(T, 3));
+                        const Right := Read_Const_Int(Nth_Operand(T, 4));
+                        if Right not null and then Left not null then
+                            return |Left - Right| + 1;
+                        end if
+                end case
+        end case
         return null;
     end func Read_Const_Int
 end class SailGate::Sema::Reader

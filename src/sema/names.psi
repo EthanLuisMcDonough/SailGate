@@ -21,6 +21,9 @@ interface SailGate::Sema::Names<> is
         const Clk_Rst_En := Prefix | "Clk_Rst_En";
         const Align := Prefix | "Align";
 
+        const Util_Prefix := Prefix | "Util::";
+        const Calc_Slice_Size := Util_Prefix | "Calc_Slice_Size";
+
         const Async_Create := Types::Domain | "::Get_Async";
         const Clock_Create := Types::Domain | "::Clock";
         const Reset_Create := Types::Domain | "::Clock_Reset";

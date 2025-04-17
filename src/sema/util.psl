@@ -3,7 +3,7 @@ import SailGate::Util::*;
 import PSC::Reflection::*;
 import SailGate::IR;
 import SailGate::Prelude;
-import SailGate::Sema::Names;
+import SailGate::Names;
 
 class SailGate::Sema::Util is
 exports

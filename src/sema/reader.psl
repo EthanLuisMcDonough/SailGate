@@ -1,7 +1,7 @@
 import SailGate::Prelude;
 import PSC::Reflection::*;
 import SailGate::Sema::Sema_Error;
-import SailGate::Sema::Names;
+import SailGate::Names;
 import SailGate::Sema::Util;
 import SailGate::IR;
 import SailGate::Util::Starts_With;

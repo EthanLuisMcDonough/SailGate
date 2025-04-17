@@ -4,7 +4,7 @@ import SailGate::Util::*;
 import SailGate::IR;
 import SailGate::Sema;
 import SailGate::Sema::Reader;
-import SailGate::Sema::Names;
+import SailGate::Names;
 import SailGate::Sema::IR_Builder::*;
 
 class SailGate::Sema::Validator is

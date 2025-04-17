@@ -2,7 +2,7 @@ import SailGate::IR;
 import SailGate::Sema::*;
 import SailGate::Prelude::Domain_Kind;
 import SailGate::Util::Result;
-import SailGate::Sema::Names;
+import SailGate::Names;
 import SailGate::Sema::Extractor::Raw_Entity_Data;
 import PSC::Reflection;
 

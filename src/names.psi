@@ -1,4 +1,4 @@
-interface SailGate::Sema::Names<> is
+interface SailGate::Names<> is
     const Prefix := "SailGate::Prelude::";
 
     interface Types<> is
@@ -30,4 +30,4 @@ interface SailGate::Sema::Names<> is
         const Reset_Create := Types::Domain | "::Clock_Reset";
         const Clk_Rst_En_Create := Types::Domain | "::Clock_Reset_Enable";
     end interface Functions
-end interface SailGate::Sema::Names
+end interface SailGate::Names

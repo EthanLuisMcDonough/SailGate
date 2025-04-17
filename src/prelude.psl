@@ -281,7 +281,7 @@ exports
             {#false}
         end op "|"
 
-        func Unsafe_Cast(L : OL is Logic<>) -> Logic is
+        func Unsafe_Cast(L : Logic) -> Logic<Async> is
             {#false}
         end func Unsafe_Cast
 
@@ -353,7 +353,7 @@ exports
             {#false}
         end op "|"
 
-        func Unsafe_Cast(V : OV is Vec<>) -> Vec is
+        func Unsafe_Cast(V : Vec) -> Vec<Size, Async> is
             {#false}
         end func Unsafe_Cast
 
@@ -454,7 +454,7 @@ exports
             {#false}
         end op "|"
 
-        func Unsafe_Cast(V : OV is IVec<>) -> IVec is
+        func Unsafe_Cast(V : IVec) -> IVec<Size, Async> is
             {#false}
         end func Unsafe_Cast
 
@@ -551,7 +551,7 @@ exports
             {#false}
         end op "|"
 
-        func Unsafe_Cast(V : OV is UVec<>) -> UVec is
+        func Unsafe_Cast(V : UVec) -> UVec<Size, Async> is
             {#false}
         end func Unsafe_Cast
 

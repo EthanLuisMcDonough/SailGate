@@ -120,7 +120,7 @@ interface SailGate::Prelude<> is
         op "=?"(L, R : Logic) -> Rtl_Ordering<Dom>;
         op "|"(L, R : Logic) -> Vec<2, Dom>;
 
-        func Unsafe_Cast(L : OL is Logic<>) -> Logic;
+        func Unsafe_Cast(L : Logic) -> Logic<Async>;
         func Sync(L : Logic<Async>) -> Logic;
         func Switch(L : Logic) -> Switch_Values::Logic;
     end interface Logic
@@ -167,7 +167,7 @@ interface SailGate::Prelude<> is
         op "|"(L : Logic<Dom>; R : Vec) -> (Result_Vec is Vec<Size + 1, Dom>);
         op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, Size)}) -> Vec;
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> Vec;
-        func Unsafe_Cast(V : OV is Vec<>) -> Vec;
+        func Unsafe_Cast(V : Vec) -> Vec<Size, Async>;
         func Sync(V : Vec<Size, Async>) -> Vec;
         func Switch(V : Vec) -> Switch_Values::Vec<Size>;
         func To_IVec(V : Vec) -> IVec<Size, Dom>;
@@ -210,7 +210,7 @@ interface SailGate::Prelude<> is
         op "mod"(L, R : IVec) -> IVec;
         op "from_univ"(Univ : Univ_Integer {Util::In_SBounds(Univ, Size)}) -> IVec;
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> IVec;
-        func Unsafe_Cast(V : OV is IVec<>) -> IVec;
+        func Unsafe_Cast(V : IVec) -> IVec<Size, Async>;
         func Sync(V : IVec<Size, Async>) -> IVec;
         func Switch(V : IVec) -> Switch_Values::IVec<Size>;
         func Logic_Vec(V : IVec) -> Vec<Size, Dom>;
@@ -239,7 +239,7 @@ interface SailGate::Prelude<> is
         op "mod"(L, R : UVec) -> UVec;
         op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, Size)}) -> UVec;
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> UVec;
-        func Unsafe_Cast(V : OV is UVec<>) -> UVec;
+        func Unsafe_Cast(V : UVec) -> UVec<Size, Async>;
         func Sync(V : UVec<Size, Async>) -> UVec;
         func Switch(V : UVec) -> Switch_Values::UVec<Size>;
         func Logic_Vec(V : UVec) -> Vec<Size, Dom>;

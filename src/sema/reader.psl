@@ -368,18 +368,19 @@ exports
 
                 // Check for generic "integer" operation invocations
                 case Func_Id of
-                    [PLUS | MINUS | MULT | DIV] =>
+                    [Names::Ops::Plus | Names::Ops::Minus | Names::Ops::Multiply |
+                            Names::Ops::Divide] =>
                         const Left := Read_Const_Int(Nth_Operand(T, 2));
                         const Right := Read_Const_Int(Nth_Operand(T, 3));
                         if Right not null and then Left not null then
                             case Func_Id of
-                                [PLUS] => return Left + Right;
-                                [MINUS] => return Left - Right;
-                                [MULT] => return Left * Right;
-                                [DIV] => return Left / Right;
+                                [Names::Ops::Plus] => return Left + Right;
+                                [Names::Ops::Minus] => return Left - Right;
+                                [Names::Ops::Multiply] => return Left * Right;
+                                [Names::Ops::Divide] => return Left / Right;
                             end case
                         end if
-                    [FROM_UNIV] =>
+                    [Names::Ops::From_Univ] =>
                         return Read_Const_Int(Nth_Operand(T, 2));
                 end case
 

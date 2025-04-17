@@ -14,6 +14,22 @@ interface SailGate::Names<> is
         const UVec := Prefix | "UVec";
     end interface Types
 
+    interface Ops<> is
+        const Plus := "\"+\"";
+        const Minus := "\"-\"";
+        const Multiply := "\"*\"";
+        const Divide := "\"/\"";
+        const Mod := "\"mod\"";
+        const Not := "\"not\"";
+        const Concat := "\"|\"";
+        const And := "\"and\"";
+        const Or := "\"or\"";
+        const Xor := "\"xor\"";
+        const Shift_Left := "\"<<\"";
+        const Shift_Right := "\">>\"";
+        const From_Univ := "\"from_univ\"";
+    end interface Ops
+
     interface Functions<> is
         // Annotation functions
         const Clock := Prefix | "Clock";

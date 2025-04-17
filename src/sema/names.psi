@@ -23,6 +23,7 @@ interface SailGate::Sema::Names<> is
 
         const Util_Prefix := Prefix | "Util::";
         const Calc_Slice_Size := Util_Prefix | "Calc_Slice_Size";
+        const Force_Dom := Util_Prefix | "Force_Dom";
 
         const Async_Create := Types::Domain | "::Get_Async";
         const Clock_Create := Types::Domain | "::Clock";

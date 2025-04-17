@@ -79,8 +79,36 @@ class SailGate::Sema::Reader is
     /// Reads domain out from type actual parameter. This is
     /// effectively a wrapper around Dom_Obj and Dom_Param
     func Read_Dom_Param(T : Tree) -> Domain_Result is
-        const Sym := Util::Get_Symbol(T);
         const Src := Util::Find_Tree_Source(T);
+        const Dom_Err := Domain_Result::Err((
+            Source => Src, Kind => #invalid_dom_arg));
+
+        if Kind(T) == #invocation then
+            const Invoc_Op := Util::Get_Call_Operation(T);
+            case Util::Get_Decl_Name(Invoc_Op) of
+                // Function used to check slice size in prelude
+                [Names::Functions::Force_Dom] =>
+                    const Left_Err := Read_Dom_Param(Nth_Operand(T, 2));
+                    if Is_Err(Left_Err) then
+                        return Left_Err;
+                    end if
+
+                    const Right_Err := Read_Dom_Param(Nth_Operand(T, 3));
+                    if Is_Err(Right_Err) then
+                        return Right_Err;
+                    end if
+
+                    if Ok(Left_Err).Kind != #async then
+                        return Left_Err;
+                    else
+                        return Right_Err;
+                    end if
+                [..] =>
+                    return Dom_Err;
+            end case
+        end if
+
+        const Sym := Util::Get_Symbol(T);
         const Sym_Def := Definition(Sym);
         const Def_Decl := Decl_Of(Sym_Def);
 
@@ -93,8 +121,7 @@ class SailGate::Sema::Reader is
                 return Dom_Param(Def_Decl);
         end case
 
-        return Domain_Result::Err((Source => Src,
-            Kind => #invalid_dom_arg));
+        return Dom_Err;
     end func Read_Dom_Param
 exports
     func Dom_Param(D : Decl) -> Domain_Result is

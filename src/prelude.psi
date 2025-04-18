@@ -183,7 +183,6 @@ interface SailGate::Prelude<> is
         op "-"(L, R : Base_Int_Vec) -> Base_Int_Vec;
         op "*"(L, R : Base_Int_Vec) -> Base_Int_Vec;
         op "/"(L, R : Base_Int_Vec) -> Base_Int_Vec;
-        op "mod"(L, R : Base_Int_Vec) -> Base_Int_Vec;
         func Logic_Vec(V : Base_Int_Vec) -> Vec<Size, Dom>;
     end interface Base_Int_Vec
 
@@ -207,7 +206,7 @@ interface SailGate::Prelude<> is
         op "-"(L, R : IVec) -> IVec;
         op "*"(L, R : IVec) -> IVec;
         op "/"(L, R : IVec) -> IVec;
-        op "mod"(L, R : IVec) -> IVec;
+        op "-"(R : IVec) -> IVec;
         op "from_univ"(Univ : Univ_Integer {Util::In_SBounds(Univ, Size)}) -> IVec;
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> IVec;
         func Unsafe_Cast(V : IVec) -> IVec<Size, Async>;
@@ -236,7 +235,6 @@ interface SailGate::Prelude<> is
         op "-"(L, R : UVec) -> UVec;
         op "*"(L, R : UVec) -> UVec;
         op "/"(L, R : UVec) -> UVec;
-        op "mod"(L, R : UVec) -> UVec;
         op "from_univ"(Univ : Univ_Integer {Util::In_UBounds(Univ, Size)}) -> UVec;
         op "from_univ"(U : Univ_String {Util::Is_Vec_Str(U, Size)}) -> UVec;
         func Unsafe_Cast(V : UVec) -> UVec<Size, Async>;

@@ -429,9 +429,9 @@ exports
             return L
         end op "/"
 
-        op "mod"(L, R : IVec) -> IVec is
-            return L
-        end op "mod"
+        op "-"(R : IVec) -> IVec is
+            return R;
+        end op "-"
 
         op "indexing"(M : IVec; Key : Vec_Index<Size>) -> Logic<Dom> is
             return (Value => #false);
@@ -525,10 +525,6 @@ exports
         op "/"(L, R : UVec) -> UVec is
             return L
         end op "/"
-
-        op "mod"(L, R : UVec) -> UVec is
-            return L
-        end op "mod"
 
         op "indexing"(M : UVec; Key : Vec_Index<Size>) -> Logic<Dom> is
             return (Value => #false);

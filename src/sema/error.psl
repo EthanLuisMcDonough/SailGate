@@ -43,7 +43,22 @@ exports
             [#invalid_dom_arg] => Println("Invalid domain object passed into type");
             [#invalid_rtl_type] => Println("Invalid type. Expected RTL type (Logic, Vec, UVec, IVec)");
             [#domain_out_of_scope] => Println("Domain referenced is out of scope. An entity can only " |
-                "use clock domains defined inside of it")
+                "use clock domains defined inside of it");
+            [#invalid_construct] => Println("Unrecognized ParaSail language construct. This could be " |
+                "unsupported control flow, an unsupported operator, or an unrecognized function.");
+            [#invalid_literal] => Println("Invalid literal. Could not be converted into the target RTL type");
+            [#literal_out_of_range] => Println("Integer literal is out of range for desired type");
+            [#invalid_concat] => Println("Concation expression does not resolve to correct type");
+            [#invalid_binary] => Println("Both sides of binary expression do not match");
+            [#invalid_slice_syntax] => Println("Invalid slice syntax. Slice syntax must look like " |
+                "Range::<START, END>::(VECTOR)");
+            [#index_out_of_range] => Println("Index value out of range");
+            [#slice_bad_size] => Println("Slice is incorrect length");
+            [#mismatched_domain] => Println("Value with incorrect clock domain");
+            [#invalid_invocation] => Println("Invalid invocation");
+            [#expected_switch] => Println("Expected call to \"Switch\" in switch-case value");
+            [#item_after_return] => Println("Item found after return statement");
+            [#invalid_return_value] => Println("Return value must be a class aggregate (e.g. (A => .., B => .., ..))")
         end case
     end func Dump
 end class SailGate::Sema::Sema_Error

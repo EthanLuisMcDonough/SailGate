@@ -1,3 +1,6 @@
+import SailGate::Sema::Util;
+import SailGate::Names;
+
 class SailGate::IR is
 exports
     class Vec_Type is
@@ -17,9 +20,37 @@ exports
 
     class Domain is
     exports
+        op "=?"(L, R : Domain) -> Ordering is
+            return Full_Name(L) =? Full_Name(R);
+        end op "=?"
+
+        func Module(D : Domain) -> Univ_String is
+            return Module_Name(D.Decl);
+        end func Module
+
+        func Full_Name(D : Domain) -> Univ_String is
+            return Util::Get_Decl_Name(D.Decl);
+        end func Full_Name
+
         func To_String(D : Domain) -> Univ_String is
             return To_String(D.Kind) | "(" | D.Name | ")";
         end func To_String
+
+        func Is_Canon_Async(D : Domain) -> Boolean is
+            return Full_Name(D) == Names::Types::Async;
+        end func Is_Canon_Async
+
+        func Force_Dom(L, R : Domain) -> Domain is
+            return (if L.Kind == #async then R else L);
+        end func Force_Dom
+
+        func Compatible(L, R : Domain) -> Boolean is
+            return L.Kind == #async or else R.Kind == #async or else L == R;
+        end func Compatible
+
+        func Ok_In_Module(D : Domain; Mod_Name : Univ_String) -> Boolean is
+            return Module(D) == Mod_Name or else Is_Canon_Async(D);
+        end func Ok_In_Module
     end class Domain
 
     class Type is
@@ -55,6 +86,15 @@ exports
             end case
             return "Type(" | Type_Str | ", " | To_String(T.Dom) | ")";
         end func To_String
+
+        func Size(T : Type) -> Univ_Integer is
+            case T.Kind of
+                [#scalar] =>
+                    return 1;
+                [#vec] =>
+                    return Get_Vec(T).Size;
+            end case
+        end func Size
 
         op "=?"(L, R : Type) -> Ordering is
             case L.Kind of

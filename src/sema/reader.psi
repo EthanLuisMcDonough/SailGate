@@ -4,11 +4,12 @@ import SailGate::Sema::Sema_Error;
 import SailGate::Util::Result;
 import SailGate::IR;
 
-/// Methods for interpreting ParaSail AST nodes as IR values
+/// Methods for interpreting ParaSail AST nodes as IR values.
+/// Most of these are related to reading expressions and types
 interface SailGate::Sema::Reader<> is
-
     type Domain_Result is Result<IR::Domain, Sema_Error>;
     type Type_Result is Result<IR::Type, Sema_Error>;
+    type Expr_Result is Result<IR::Expression+, Sema_Error>;
 
     /// Reads domain parameter from type parameter annotation
     func Dom_Param(D : Decl) -> Domain_Result;
@@ -31,5 +32,27 @@ interface SailGate::Sema::Reader<> is
 
     /// Attempts to read tree as a constant integer. Returns null on failure
     func Read_Const_Int(T : Tree) -> optional Univ_Integer;
+
+    /// Context relevant to expression parsing
+    interface Context<> is
+        const Enclosing_Module : Univ_String;
+    end interface Context
+
+    /// Converts ParaSail AST into IR expression
+    func Walk_Expr(Ctx : Context; Expr_Tree : Tree) -> Expr_Result;
+
+    /// Walks condition expression. Resolved conditions are wrapped inside a
+    /// call to "to_bool" that converts the value into a native ParaSail boolean.
+    /// We don't want that tree because it destroys the domain data Rtl_Bool gives us
+    func Walk_Cond(Ctx : Context; Expr_Tree : Tree) -> Expr_Result;
+
+    /// Walks switch/case expression. This expression is expected to be wrapped in
+    /// a call to the "Switch" function
+    func Walk_Case_Value(Ctx : Context; Expr_Tree : Tree) -> Expr_Result;
+
+    /// Walks invidual switch case item. Interprets literals based on the case
+    /// type and adds them to the supplied list.
+    func Walk_Case_Selector(Expr_Tree : Tree; Case_Type : IR::Type;
+        var Literals : IR::Literals) -> optional Sema_Error;
 
 end interface SailGate::Sema::Reader

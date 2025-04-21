@@ -1,5 +1,4 @@
 import PSC::Reflection::*;
-import SailGate::IR;
 
 /// Utility functions for navigating reflection envrionment
 interface SailGate::Sema::Util<> is
@@ -31,4 +30,11 @@ interface SailGate::Sema::Util<> is
 
     /// Same as Get_Resolved_Type, but for symbols
     func Get_Symbol(T : Tree) -> optional Symbol;
+
+    /// Gets number of params in operation
+    func Op_Param_Count(Op : Decl {Kind(Op) == #operation}) -> Univ_Integer;
+
+    /// Get resolved interpretation of Tree if one exists
+    func Resolved(T : Tree) -> Tree;
+
 end interface SailGate::Sema::Util

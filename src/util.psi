@@ -6,6 +6,10 @@ interface SailGate::Util<> is
 
     func Enum_As_Str(U : Univ_Enumeration) -> Univ_String;
 
+    /// Strips quotes from a quoted string or character
+    /// E.g. "\"test\"" -> "test" and "'c'" -> "c"
+    func Strip_Quotes(S : Univ_String {|S| >= 2}) -> Univ_String;
+
     type Either_Kind is Enum<[#left, #right]>;
     interface Either<L is Assignable<>; R is Assignable<>> is
         const Kind : Either_Kind;

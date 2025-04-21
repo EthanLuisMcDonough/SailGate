@@ -1,32 +1,382 @@
 import PSC::Reflection;
+import PSC::Reflection::Tree;
 import SailGate::*;
 import SailGate::Util::*;
+import SailGate::Prelude;
 import SailGate::IR;
 import SailGate::Sema;
 import SailGate::Sema::Reader;
 import SailGate::Names;
 import SailGate::Sema::IR_Builder::*;
+import SailGate::Sema::Control_Flow_Desc::*;
 
 class SailGate::Sema::Validator is
     type Entity_Result is Result<Univ_String, Sema_Error>;
+    type Expr_Result is Result<IR::Expression+, Sema_Error>;
 
-    func Check_Tree(var V : Validator; var B : Entity_Builder; T : Reflection::Tree) -> optional Sema_Error is
-        {#false}
-    end func Check_Tree
+    /// Builders + data gathered after first semantic pass
+    interface Pending_Data<> is
+        var Builder : Entity_Builder;
+        var Run : Extractor::Module_Desc::Module_Op;
+    end interface Pending_Data
+    var Pending_Entities : Ordered_Map<Univ_String, Pending_Data>;
 
-    func Check_Body(var V : Validator; var B : Entity_Builder; R : Reflection::Region) -> optional Sema_Error is
+    /// Walks top level binary operators. This will usually just be next_stmt_op
+    func Walk_Stmt_Binary(var V : Validator; var B : Entity_Builder;
+        T : Tree {Kind(T) == #binary}) -> optional Sema_Error
+    is
+        const Left := Nth_Operand(T, Tree::Binary_Left_Op);
+        const Right := Nth_Operand(T, Tree::Binary_Right_Op);
+        case Binary_Op(T) of
+            [#next_stmt_op] =>
+                const Walk_Res_Left := Walk_Tree(V, B, Left);
+                if Walk_Res_Left not null then
+                    return Walk_Res_Left;
+                end if
+                return Walk_Tree(V, B, Right);
+            [..] =>
+                return (Kind => #invalid_construct,
+                    Source => Util::Find_Tree_Source(T));
+        end case
+    end func Walk_Stmt_Binary
+
+    /// Walk binary stmts in 
+    func Walk_Block_Binary(var B : Statement_Builder+;
+        T : Tree {Kind(T) == #binary}) -> optional Sema_Error
+    is
+        const Left := Nth_Operand(T, Tree::Binary_Left_Op);
+        const Right := Nth_Operand(T, Tree::Binary_Right_Op);
+        case Binary_Op(T) of
+            [#next_stmt_op] =>
+                const Walk_Res_Left := Walk_Block_Tree(B, Left);
+                if Walk_Res_Left not null then
+                    return Walk_Res_Left;
+                end if
+                return Walk_Block_Tree(B, Right);
+            [..] =>
+                return (Kind => #invalid_construct,
+                    Source => Util::Find_Tree_Source(T));
+        end case
+    end func Walk_Block_Binary
+
+    func Walk_Entity_Inst(var V : Validator; var B : Entity_Builder;
+        T : Tree {Kind(T) == #obj_decl}) -> optional Sema_Error
+    is
+        {*"Not implemented: entity instantiation"* #false}
+    end func Walk_Entity_Inst
+
+    /// Walk wire definition
+    func Walk_Wire(var B : Entity_Builder; T : Tree
+        {Kind(T) == #obj_decl and then Obj_Decl_Is_Const(T)};
+        Type : IR::Type) -> optional Sema_Error
+    is
+        const Wire_Decl := Decl_Of(T);
+
+        // Parse initial value expression
+        const Obj_Val := Nth_Operand(T, Tree::Obj_Decl_Value_Op);
+        const Obj_Val_Res := Reader::Walk_Expr(Context(B), Obj_Val);
+        if Is_Err(Obj_Val_Res) then
+            return Err(Obj_Val_Res);
+        end if
+        const Obj_Val_Expr := Ok(Obj_Val_Res);
+
+        const Wire : IR::Wire := (Name => Id(Wire_Decl), Type => Type,
+            Source => Util::Find_Tree_Source(T));
+        return Add_Wire(B, Wire);
+    end func Walk_Wire
+
+    /// Walk register definition
+    func Walk_Register(var B : Entity_Builder; T : Tree
+        {Kind(T) == #obj_decl and then Obj_Decl_Is_Var(T)};
+        Type : IR::Type) -> optional Sema_Error
+    is
+        const Reg_Decl := Decl_Of(T);
+        var Reg_Init : optional IR::Literal := null;
+
+        const Init_Tree := Nth_Operand(T, Tree::Obj_Decl_Value_Op);
+        if Init_Tree not null then
+            // Read register initial expression
+            const Init_Res := Reader::Walk_Expr(Context(B), Init_Tree);
+            if Is_Err(Init_Res) then
+                return Err(Init_Res);
+            end if
+
+            // If it isn't constant, we have a problem
+            case Ok(Init_Res) of
+                [Lit_Val : IR::Literal] =>
+                    Reg_Init := Lit_Val;
+                [..] =>
+                    return (Kind => #non_const_val,
+                        Source => Util::Find_Tree_Source(Init_Tree));
+            end case
+        end if
+
+        const Reg : IR::Register := (Name => Id(Reg_Decl),
+            Init => Reg_Init, Type => Type,
+            Source => Decl_Source_Pos(Reg_Decl));
+        return Add_Register(B, Reg);
+    end func Walk_Register
+
+    /// Walk object declarations. This includes registers, wires, and entity instances
+    func Walk_Obj_Decl(var V : Validator; var B : Entity_Builder;
+        T : Tree {Kind(T) == #obj_decl}) -> optional Sema_Error
+    is
+        // Determine declaration type
+        // const + RTL type = wire
+        // var + RTL type = register
+        // other defined entity = instance
+        const Is_Const := Obj_Decl_Is_Const(T);
+        const Tree_Source := Util::Find_Tree_Source(T);
+        const Obj_Decl_Decl := Decl_Of(T);
+        const SI := Sem_Info(T);
+
+        if Reader::Type_Is_Rtl(SI) then
+            const Def_Type_Err := Reader::Type_To_Rtl(SI, Tree_Source);
+            if Is_Err(Def_Type_Err) then
+                return Err(Def_Type_Err);
+            end if
+            const Def_Type := Ok(Def_Type_Err);
+
+            if Is_Const then
+                // Wire
+                return Walk_Wire(B, T, Def_Type)
+            else
+                // Register
+                return Walk_Register(B, T, Def_Type);
+            end if
+        else
+            // Read entity instantiation
+            {*"NYI: entity reuse"* #false}
+        end if
+    end func Walk_Obj_Decl
+
+    func Walk_Assign(var B : Statement_Builder+;
+        T : Tree {Kind(T) == #assign_stmt}) -> optional Sema_Error
+    is
+        const EC := Context(B);
+
+        const Left_Tree := Nth_Operand(T, Tree::Assign_Left_Op);
+        const Left_Err := Reader::Walk_Expr(EC, Left_Tree);
+        if Is_Err(Left_Err) then
+            return Err(Left_Err);
+        end if
+        const Left := Ok(Left_Err);
+
+        const Right_Tree := Nth_Operand(T, Tree::Assign_Right_Op);
+        const Right_Err := Reader::Walk_Expr(EC, Right_Tree);
+        if Is_Err(Right_Err) then
+            return Err(Right_Err);
+        end if
+        const Right := Ok(Right_Err);
+
+        const Assign_Stmt : IR::Assignment := (
+            Asignee => Left, Value => Right,
+            Source => Util::Find_Tree_Source(T));
+        return Add_Stmt(B, Assign_Stmt);
+    end func Walk_Assign
+
+    /// Walk an if statement
+    func Walk_Cond(var B : Statement_Builder+;
+        T : Tree {Kind(T) == #conditional}) -> optional Sema_Error
+    is
+        const Tree_Src := Util::Find_Tree_Source(T);
+        const Ctx := Context(B);
+        const Chain := If_Stmt_Desc::Read(T);
+
+        // Walk the if statement condition
+        const If_Cond_Err := Reader::Walk_Cond(Ctx, Chain.If.Cond);
+        if Is_Err(If_Cond_Err) then
+            return Err(If_Cond_Err);
+        end if
+        const If_Cond := Ok(If_Cond_Err);
+
+        // Create an if statement builder with our validated condition
+        var IB := If_Builder::Create(Ctx, If_Cond, Tree_Src);
+
+        // Walk its body
+        const If_Body_Err := Walk_Block_Tree(IB, Chain.If.Body);
+        if If_Body_Err not null then
+            return If_Body_Err;
+        end if
+
+        // Do the same for each elsif
+        for I in 1..|Chain.Elifs| forward loop
+            ref Elif => Chain.Elifs[I];
+
+            const Elif_Cond_Err := Reader::Walk_Cond(Ctx, Elif.Cond);
+            if Is_Err(Elif_Cond_Err) then
+                return Err(Elif_Cond_Err);
+            end if
+            const Elif_Cond := Ok(Elif_Cond_Err);
+
+            const New_Elif_Err := Add_Elif(IB, Elif_Cond);
+            if New_Elif_Err not null then
+                return New_Elif_Err;
+            end if
+
+            const Elif_Body_Err := Walk_Block_Tree(IB, Elif.Body);
+            if Elif_Body_Err not null then
+                return Elif_Body_Err;
+            end if
+        end loop
+
+        // Same for else, if we have one
+        if Chain.Else not null then
+            Add_Else(IB);
+            const Else_Body_Err := Walk_Block_Tree(IB, Chain.Else);
+            if Else_Body_Err not null then
+                return Else_Body_Err;
+            end if
+        end if
+
+        const If_Stmt := Build(IB);
+        return Add_Stmt(B, If_Stmt);
+    end func Walk_Cond
+
+    /// Walk a case statement
+    func Walk_Case(var B : Statement_Builder+;
+        T : Tree {Kind(T) == #case_construct}) -> optional Sema_Error
+    is
+        const Ctx := Context(B);
+        const Tree_Src := Util::Find_Tree_Source(T);
+        const Case := Case_Desc::Read(T);
+
+        const Case_Expr_Err := Reader::Walk_Case_Value(Ctx, Case.Expr);
+        if Is_Err(Case_Expr_Err) then
+            return Err(Case_Expr_Err);
+        end if
+        const Case_Expr := Ok(Case_Expr_Err);
+        const Case_Type := Get_Type(Case_Expr);
+
+        var CB := Case_Builder::Create(Ctx, Case_Expr, Tree_Src);
+
+        for I in 1..|Case.Cases| forward loop
+            var Lits : IR::Literals := [];
+            const Lit_Err := Reader::Walk_Case_Selector(
+                Case.Cases[I].Selector, Case_Type, Lits);
+            if Lit_Err not null then
+                return Lit_Err;
+            end if
+
+            Add_Selector(CB, Lits);
+
+            const Case_Body_Err := Walk_Block_Tree(CB, Case.Cases[I].Body);
+            if Case_Body_Err not null then
+                return Case_Body_Err;
+            end if
+        end loop
+        
+        if Case.Default not null then
+            Add_Default(CB);
+
+            const Default_Err := Walk_Block_Tree(CB, Case.Default);
+            if Default_Err not null then
+                return Default_Err;
+            end if
+        end if
+
+        const Case_Stmt := Build(CB);
+        return Add_Stmt(B, Case_Stmt);
+    end func Walk_Case
+
+    /// Walks a tree nested inside a control flow construct
+    func Walk_Block_Tree(var B : Statement_Builder+; T : Tree) -> optional Sema_Error is
+        case Kind(T) of
+            [#binary] => return Walk_Block_Binary(B, T);
+            [#assign_stmt] => return Walk_Assign(B, T);
+            [#conditional] => return Walk_Cond(B, T);
+            [#case_construct] => return Walk_Case(B, T);
+            [..] =>
+                return (Kind => #invalid_construct,
+                    Source => Util::Find_Tree_Source(T));
+        end case
+    end func Walk_Block_Tree
+
+    /// Walks return value. These are the output values.
+    func Walk_Return(var B : Entity_Builder; T : Tree) -> optional Sema_Error is
+        const Return_Value := Nth_Operand(T, Tree::Control_Stmt_Val_Op);
+        const RV_Resolved := Util::Resolved(Return_Value);
+
+        const RV_Src := Util::Find_Tree_Source(Return_Value);
+        const RV_SI := Sem_Info(Return_Value);
+        const RV_Mod := Associated_Module(RV_SI);
+
+        if B.Name != Util::Get_Decl_Name(RV_Mod) then
+            return (Kind => #invalid_run_return, Source => RV_Src);
+        end if
+
+        // Make sure return is in right format
+        if Kind(RV_Resolved) != #invocation or else
+            Invocation_Kind(RV_Resolved) != #class_aggregate
+        then
+            return (Kind => #invalid_return_value, Source => RV_Src);
+        end if
+
+        // Get names of outputs
+        {|B.Outputs| == Num_Operands(RV_Resolved)}
+        const Output_Names := Keys(B.Outputs);
+        var Key : Univ_String := First(Output_Names);
+
+        // Loop through return key/values
+        for I in 1..Num_Operands(RV_Resolved) forward loop
+            const Value_Tree := Nth_Operand(RV_Resolved, I);
+            const VT_Err := Reader::Walk_Expr(Context(B), Value_Tree);
+            if Is_Err(VT_Err) then
+                return Err(VT_Err);
+            end if
+            const Value := Ok(VT_Err);
+
+            const Output_Err := Output_Assign(B, Key, Value);
+            if Output_Err not null then
+                return Output_Err;
+            end if
+
+            // Get next output field
+            Key := Next(Output_Names, Key);
+        end loop
+
+        Set_Returned(B);
+    end func Walk_Return
+
+    func Walk_Tree(var V : Validator; var B : Entity_Builder;
+        T : Tree) -> optional Sema_Error
+    is
+        const Invalid_Construct_Err : Sema_Error := (
+            Kind => #invalid_construct,
+            Source => Util::Find_Tree_Source(T));
+        case Kind(T) of
+            [#obj_decl] => return Walk_Obj_Decl(V, B, T);
+            [#binary] => return Walk_Stmt_Binary(V, B, T);
+            [#assign_stmt] => return Walk_Assign(B, T);
+            [#conditional] => return Walk_Cond(B, T);
+            [#case_construct] => return Walk_Case(B, T);
+            [#control_stmt] =>
+                case Control_Stmt_Kind(T) of
+                    [#null_stmt] => return null;
+                    [#return_stmt] => return Walk_Return(B, T);
+                    [..] => return Invalid_Construct_Err;
+                end case
+            [..] =>
+                Println(To_String(Kind(T)));
+                return Invalid_Construct_Err;
+        end case
+    end func Walk_Tree
+
+    func Walk_Body(var V : Validator; var B : Entity_Builder;
+        R : Reflection::Region) -> optional Sema_Error
+    is
         for I in 1..Num_Trees(R) forward loop
             const Tree := Nth_Tree(R, I);
-            const Tree_Err := Check_Tree(V, B, Tree);
+            const Tree_Err := Walk_Tree(V, B, Tree);
             if Tree_Err not null then
                 return Tree_Err;
             end if
         end loop
-    end func Check_Body
+    end func Walk_Body
 
-    /// Read top level entity from raw entity data
-    func Check_Entity(var V : Validator; D : Extractor::Module_Desc) -> optional Sema_Error is
-        var Builder := Entity_Builder::Create(D.Name);
+    /// Read domains and ports from module data
+    func First_Pass(var V : Validator; D : Extractor::Module_Desc) -> optional Sema_Error is
+        var Builder := Entity_Builder::Create(D.Name, Decl_Source_Pos(D.Decl));
         const Decl_Src := Decl_Source_Pos(D.Decl);
 
         // Get entity "Run" routine
@@ -95,8 +445,7 @@ class SailGate::Sema::Validator is
                 end if
 
                 // Check for initial value (not allowed for inputs)
-                if Nth_Operand(Param_Tree, Reflection::Tree::Param_Decl_Value_Op)
-                        not null then
+                if Nth_Operand(Param_Tree, Tree::Param_Decl_Value_Op) not null then
                     return (Kind => #field_init_val, Source => Param_Source);
                 end if
 
@@ -147,7 +496,7 @@ class SailGate::Sema::Validator is
             end if
 
             // Check for initial value (not allowed for outputs)
-            if Nth_Operand(Comp_Tree, Reflection::Tree::Obj_Decl_Value_Op)
+            if Nth_Operand(Comp_Tree, Tree::Obj_Decl_Value_Op)
                     not null then
                 return (Kind => #field_init_val,
                     Source => Comp_Source);
@@ -175,24 +524,57 @@ class SailGate::Sema::Validator is
             end if
         end loop
 
+        V.Pending_Entities |= (Key => Builder.Name,
+            Value => (Builder => Builder, Run => Run_Op));
+    end func First_Pass
+
+    // Finalizes entity body
+    func Second_Pass(var V : Validator; var Pending : Pending_Data) -> optional Sema_Error is
+        ref var Builder => Pending.Builder;
+        const Run_Region := Body_Region(Pending.Run.Decl)
+
+        const Walk_Res := Walk_Body(V, Builder, Run_Region);
+        if Walk_Res not null then
+            return Walk_Res
+        end if
+
+        const Final_Err := Finalize(Builder);
+        if Final_Err not null then
+            return Final_Err;
+        end if
+
         const Entity := Build(Builder);
         V.Entities |= (Key => Entity.Name, Value => Entity);
-    end func Check_Entity
+    end func Second_Pass
 exports
     func Create() -> Validator is
-        return (Entities => []);
+        return (Pending_Entities => [], Entities => []);
     end func Create
 
     func Check(var V : Validator; Ex : Extractor) -> optional Sema_Error is
         if |Ex.Entities| == 0 then
             return (Kind => #no_entity, Source => null);
         end if
+
         for I in 1..|Ex.Entities| forward loop
-            const Entity_Err := Check_Entity(V, Ex.Entities[I]);
+            const Entity_Err := First_Pass(V, Ex.Entities[I]);
             if Entity_Err not null then
                 return Entity_Err;
             end if
         end loop
+
+        for each [Name => Data] of V.Pending_Entities forward loop
+            const Entity_Err := Second_Pass(V, Data);
+            if Entity_Err not null then
+                return Entity_Err;
+            end if
+        end loop
+
+        V.Pending_Entities := [];
+
+        if |V.Entities| == 0 then
+            return (Kind => #no_entity, Source => null);
+        end if
     end func Check
 
     func Dump(V : Validator) is

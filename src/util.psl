@@ -151,4 +151,8 @@ exports
             return Unwrap_Right(R.Val);
         end func Unwrap_Err
     end class Result
+
+    func Strip_Quotes(S : Univ_String) -> Univ_String is
+        return (if |S| == 2 then "" else S[2..(|S| - 1)]);
+    end func Strip_Quotes
 end class SailGate::Util

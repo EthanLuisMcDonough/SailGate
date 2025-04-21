@@ -9,50 +9,51 @@ import PSC::Reflection;
 class SailGate::Sema::IR_Builder<> is
 exports
     class Entity_Builder is
-        const Name : Univ_String;
-
+        const Source : IR::Pos;
         var Is_Top_Level : Boolean := #true;
-        var Inputs : IR::Port_Def := [];
-        var Outputs : IR::Port_Def := [];
         var Output_Values : IR::Expr_Map := [];
         var Registers : IR::Reg_Def := [];
         var Components : Vector<IR::Component> := [];
         var Domains : IR::Domain_Map := [];
-        var Impl : IR::Implicit_Processes := [];
+        var Impl : Ordered_Map<Univ_String, IR::Block> := [];
         var Expl : IR::Processes := [];
         var Concurrent : IR::Concurrent_Defs := [];
         var Scope : IR::Entity_Scope := [];
 
+        var Has_Return : Boolean := #false;
+        var Is_Ready : Boolean := #false;
+
         /// Adds item to entity scope
         func Add_Scope_Item(var E : Entity_Builder;
-                Name : Univ_String {Name not in E.Scope};
-                Kind : IR::Scope_Item) is
+            Name : Univ_String {Name not in E.Scope};
+            Kind : IR::Scope_Item)
+        is
             E.Scope |= (Key => Name, Value => Kind);
         end func Add_Scope_Item
-
-        // Checks if domain is in entity scope or async
-        func Is_Domain_Ok(E : Entity_Builder; Dom : IR::Domain) -> Boolean is
-            if Dom.Full_Name == Names::Types::Async then
-                return #true;
-            elsif Dom.Name in E.Domains then
-                return Dom.Full_Name == E.Domains[Dom.Name].Full_Name;
-            else
-                return #false;
-            end if
-        end func Is_Domain_Ok
 
         func Check_Field_Type(E : Entity_Builder; T : IR::Type) -> optional Sema_Error is
             if not Is_Domain_Ok(E, T.Dom) then
                 return (Kind => #domain_out_of_scope,
-                    Source => T.Source)
+                    Source => T.Source);
             elsif not Valid_Field_Type(T) then
                 return (Kind => #invalid_field_type,
-                    Source => T.Source)
+                    Source => T.Source);
             end if
         end func Check_Field_Type
+
+        // Checks if domain is in entity scope or async
+        func Is_Domain_Ok(E : Entity_Builder; Dom : IR::Domain) -> Boolean is
+            if Is_Canon_Async(Dom) then
+                return #true;
+            elsif Dom.Name in E.Domains then
+                return Dom == E.Domains[Dom.Name];
+            else
+                return #false;
+            end if
+        end func Is_Domain_Ok
     exports
-        func Create(Name : Univ_String) -> Entity_Builder is
-            return (Name => Name);
+        func Create(Name : Univ_String; Source : IR::Pos) -> Entity_Builder is
+            return (Name => Name, Source => Source);
         end func Create
 
         func Add_Clock_Param(var E : Entity_Builder; Dom : IR::Domain) is
@@ -64,19 +65,20 @@ exports
 
         func Add_Clock_Obj(var E : Entity_Builder; Dom : IR::Domain) -> optional Sema_Error is
             if not E.Is_Top_Level then
-                return #dom_obj_in_abstract;
+                const Dom_Src := Decl_Source_Pos(Dom.Decl);
+                return (Kind => #dom_obj_in_abstract, Source => Dom_Src);
             end if
             E.Domains |= (Key => Dom.Name, Value => Dom);
             Add_Scope_Item(E, Dom.Name, #domain);
         end func Add_Clock_Obj
 
-        func Read_Type(E : Entity_Builder; T : Reflection::Tree) -> Type_Result is
-
-            {#false}
-        end func Read_Type
+        func Context(E : Entity_Builder) -> Reader::Context is
+            return (Enclosing_Module => E.Name);
+        end func Context
 
         func Add_Input(var E : Entity_Builder; Name : Univ_String;
-                Type : IR::Type) -> optional Sema_Error is
+            Type : IR::Type) -> optional Sema_Error
+        is
             Add_Scope_Item(E, Name, #input);
             const Check_Err := Check_Field_Type(E, Type);
             if Check_Err not null then
@@ -86,7 +88,8 @@ exports
         end func Add_Input
 
         func Add_Output(var E : Entity_Builder; Name : Univ_String;
-                Type : IR::Type) -> optional Sema_Error is
+            Type : IR::Type) -> optional Sema_Error
+        is
             const Check_Err := Check_Field_Type(E, Type);
             if Check_Err not null then
                 return Check_Err;
@@ -94,33 +97,239 @@ exports
             E.Outputs |= (Key => Name, Value => Type);
         end func Add_Output
 
+        func Add_Stmt(var E : Entity_Builder; Stmt : IR::Statement+)
+            -> optional Sema_Error
+        is
+            if E.Has_Return then
+                return (Kind => #item_after_return,
+                    Source => Get_Source(Stmt));
+            end if
+            const Stmt_Dom := Get_Dom(Stmt);
+            if not Is_Domain_Ok(E, Stmt_Dom) then
+                return (Kind => #domain_out_of_scope,
+                    Source => Get_Source(Stmt));
+            end if
+
+            if Stmt_Dom.Name not in E.Impl then
+                E.Impl |= (Key => Stmt_Dom.Name, Value => [Stmt]);
+            else
+                E.Impl[Stmt_Dom.Name] |= Stmt;
+            end if
+        end func Add_Stmt
+
         func Add_Register(var E : Entity_Builder;
-                Name : Univ_String; Type : IR::Type;
-                Init : optional Reflection::Tree := null) -> optional Sema_Error is
-            {#false}
+            Reg : IR::Register) -> optional Sema_Error
+        is
+            if E.Has_Return then
+                return (Kind => #item_after_return,
+                    Source => Reg.Source);
+            end if
+            Add_Scope_Item(E, Reg.Name, #register);
+            const Check_Err := Check_Field_Type(E, Reg.Type);
+            if Check_Err not null then
+                return Check_Err;
+            end if
+            E.Registers |= (Key => Reg.Name, Value => Reg);
         end func Add_Register
 
         func Add_Wire(var E : Entity_Builder; W : IR::Wire)
-                -> optional Sema_Error is
-            {#false}
+            -> optional Sema_Error
+        is
+            if E.Has_Return then
+                return (Kind => #item_after_return,
+                    Source => W.Source);
+            end if
+            Add_Scope_Item(E, W.Name, #wire);
+            const Check_Err := Check_Field_Type(E, W.Type);
+            if Check_Err not null then
+                return Check_Err;
+            end if
+            E.Concurrent |= W;
         end func Add_Wire
 
         func Output_Assign(var E : Entity_Builder; Name : Univ_String;
-                T : Reflection::Tree) -> optional Sema_Error is
-            {#false}
+            Val : IR::Expression+) -> optional Sema_Error
+        is
+            {Name in E.Outputs}
+            E.Output_Values |= (Key => Name, Value => Val);
         end func Output_Assign
 
+        func Set_Returned(var E : Entity_Builder) is
+            E.Has_Return := #true;
+        end func Set_Returned
+
+        /// Checks if entity is ready to be created
+        func Finalize(var E : Entity_Builder) -> optional Sema_Error is
+            if not E.Has_Return then
+                return (Kind => #invalid_run_return,
+                    Source => E.Source);
+            end if
+            E.Is_Ready := #true;
+        end func Finalize
+
         func Build(E : Entity_Builder) -> IR::Entity is
+            {E.Is_Ready}
+            var Impl : IR::Implicit_Processes := [];
+            for each [Dom_Name => Block] of E.Impl forward loop
+                const Proc : IR::Dom_Process := (
+                    Dom => E.Domains[Dom_Name], Body => Block);
+                Impl |= (Key => Dom_Name, Value => Proc);
+            end loop
+
             const Finished : IR::Entity := (Name => E.Name,
                 Is_Top_Level => E.Is_Top_Level, Inputs => E.Inputs,
                 Outputs => E.Outputs, Output_Values => E.Output_Values,
                 Registers => E.Registers, Components => E.Components,
-                Domains => E.Domains, Scope => E.Scope, Impl => E.Impl,
-                Expl => E.Expl, Concurrent => E.Concurrent, Test_Bench => null);
+                Domains => E.Domains, Scope => E.Scope, Impl => Impl,
+                Concurrent => E.Concurrent, Test_Bench => null);
             return Finished;
         end func Build
     end class Entity_Builder
 
+    class If_Builder<> implements Statement_Builder<> is
+        const Ctx : Reader::Context;
 
+        interface Pair<> is
+            const Cond : IR::Expression+;
+            var Body : IR::Block;
+        end interface Pair
+
+        const Init_Cond : IR::Expression+;
+        const Dom : IR::Domain;
+        const Source : IR::Pos;
+
+        var Init_Body : IR::Block := [];
+        var Elifs : Vector<Pair> := [];
+        var Else : optional IR::Block := null;
+
+        // Only accept async statements and statements that match
+        // this construct's clock domain exactly
+        func Dom_Is_Ok(I : If_Builder; D : IR::Domain) -> Boolean is
+            return I.Dom == D or else D.Kind == #async;
+        end func Dom_Is_Ok
+    exports
+        func Create(Ctx : Reader::Context; Init_Cond : IR::Expression+;
+            Source : IR::Pos) -> If_Builder
+        is
+            const Type := Get_Type(Init_Cond);
+            return (Ctx => Ctx, Init_Cond => Init_Cond,
+                Dom => Type.Dom, Source => Source);
+        end func Create
+
+        func Add_Stmt(var B : If_Builder;
+            Stmt : IR::Statement+) -> optional Sema_Error
+        is
+            if not Dom_Is_Ok(B, Get_Dom(Stmt)) then
+                return (Source => Get_Source(Stmt),
+                    Kind => #mismatched_domain);
+            end if
+
+            if B.Else not null then
+                B.Else |= Stmt;
+            elsif |B.Elifs| > 0 then
+                const Len := |B.Elifs|;
+                B.Elifs[Len].Body |= Stmt;
+            else
+                B.Init_Body |= Stmt;
+            end if
+        end func Add_Stmt
+
+        func Add_Elif(var B : If_Builder; Condition : IR::Expression+)
+            -> optional Sema_Error
+        is
+            const Cond_Type := Get_Type(Condition);
+            if not Dom_Is_Ok(B, Cond_Type.Dom) then
+                return (Source => Get_Source(Condition),
+                    Kind => #mismatched_domain);
+            end if
+
+            B.Elifs |= (Cond => Condition, Body => []);
+        end func Add_Elif
+
+        func Add_Else(var B : If_Builder) is
+            B.Else := [];
+        end func Add_Else
+
+        func Context(I : If_Builder) -> Reader::Context is
+            return I.Ctx;
+        end func Context
+
+        func Build(E : If_Builder) -> IR::If_Chain is
+            var Elifs : Vector<IR::Condition_Body> := [];
+            for I in 1..|E.Elifs| forward loop
+                Elifs |= (Condition => E.Elifs[I].Cond, Body => E.Elifs[I].Body);
+            end loop
+
+            return (Dom => E.Dom, Source => E.Source,
+                Base => (Condition => E.Init_Cond, Body => E.Init_Body),
+                Elifs => Elifs, Else => E.Else);
+        end func Build
+    end class If_Builder
+
+    class Case_Builder is
+        const Ctx : Reader::Context;
+
+        interface Pair<> is
+            const Selectors : IR::Literals;
+            var Body : IR::Block;
+        end interface Pair
+
+        const Expr : IR::Expression+;
+        const Source : IR::Pos;
+        var Blocks : Vector<Pair> := [];
+        var Default : optional IR::Block := null;
+
+        func Dom_Is_Ok(C : Case_Builder; D : IR::Domain) -> Boolean is
+            return Get_Type(C.Expr).Dom == D or else D.Kind == #async;
+        end func Dom_Is_Ok
+    exports
+        func Create(Ctx : Reader::Context; Expr : IR::Expression+;
+            Source : IR::Pos) -> Case_Builder
+        is
+            return (Ctx => Ctx, Expr => Expr, Source => Source);
+        end func Create
+
+        func Context(C : Case_Builder) -> Reader::Context is
+            return C.Ctx;
+        end func Context
+
+        func Add_Selector(var B : Case_Builder; S : IR::Literals) is
+            {B.Default is null}
+            B.Blocks |= (Selectors => S, Body => []);
+        end func Add_Selector
+
+        func Add_Default(var B : Case_Builder) is
+            B.Default := [];
+        end func Add_Default
+
+        func Add_Stmt(var B : Case_Builder;
+            Stmt : IR::Statement+) -> optional Sema_Error
+        is
+            if not Dom_Is_Ok(B, Get_Dom(Stmt)) then
+                return (Source => Get_Source(Stmt),
+                    Kind => #mismatched_domain);
+            end if
+
+            const Block_Count := |B.Blocks|;
+
+            if B.Default not null then
+                B.Default |= Stmt;
+            elsif Block_Count > 0 then
+                B.Blocks[Block_Count].Body |= Stmt;
+            else
+                {*"Invalid use of case builder"* #false}
+            end if
+        end func Add_Stmt
+
+        func Build(E : Case_Builder) -> IR::Switch_Case is
+            var Cases : Vector<IR::Case_Check> := [];
+            for I in 1..|E.Blocks| forward loop
+                Cases |= (Values => E.Blocks[I].Selectors,
+                    Body => E.Blocks[I].Body);
+            end loop
+            return (Expr => E.Expr, Cases => Cases,
+                Default => E.Default, Source => E.Source);
+        end func Build
+    end class Case_Builder
 
 end class SailGate::Sema::IR_Builder

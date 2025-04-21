@@ -1,0 +1,74 @@
+import PSC::Reflection::*;
+
+class SailGate::Sema::Control_Flow_Desc is
+exports
+    class If_Stmt_Desc is
+        // Recursively walks elifs until it finds an "else". Returns the else block
+        // and adds the elifs to a vector
+        func Walk_Elifs(T : Tree; var Elifs : Vector<Pair>) -> optional Tree is
+            if T is null then
+                return null;
+            elsif Kind(T) != #conditional then
+                return T;
+            end if
+
+            const Cond := Nth_Operand(T, Tree::Conditional_Cond_Op);
+            const Body := Nth_Operand(T, Tree::Conditional_Then_Op);
+            const Else := Nth_Operand(T, Tree::Conditional_Else_Op);
+
+            Elifs |= (Cond => Cond, Body => Body);
+            return Walk_Elifs(Else, Elifs);
+        end func Walk_Elifs
+    exports
+        func Read(T : Tree) -> If_Stmt_Desc is
+            const Cond := Nth_Operand(T, Tree::Conditional_Cond_Op);
+            const Body := Nth_Operand(T, Tree::Conditional_Then_Op);
+            const Else_Block := Nth_Operand(T, Tree::Conditional_Else_Op);
+
+            const Main : Pair := (Cond => Cond, Body => Body);
+            var Elifs : Vector<Pair> := []
+            const Else := Walk_Elifs(Else_Block, Elifs);
+
+            return (If => Main, Elifs => Elifs, Else => Else,
+                Is_Expr => (Conditional_Kind(T) == #if_expr));
+        end func Read
+    end class If_Stmt_Desc
+
+    class Case_Desc is
+        // Extracts the case tree from the case reference tree
+        func Read_Selector(T : Tree {Kind(T) == #reference}) -> Tree is
+            const Selector := Nth_Operand(T, Tree::Reference_Key_Op);
+            {Kind(Selector) == #invocation and then
+                Invocation_Kind(Selector) == #container_aggregate
+                and then Num_Operands(Selector) == 1}
+            return Nth_Operand(Selector, 1);
+        end func Read_Selector
+
+        // Check for empty ".." call
+        func Is_Default_Case(T : Tree) -> Boolean is
+            return Kind(T) == #binary and then Binary_Op(T) == #closed_interval_op
+                and then Nth_Operand(T, Tree::Binary_Left_Op) is null
+                and then Nth_Operand(T, Tree::Binary_Right_Op) is null;
+        end func Is_Default_Case
+    exports
+        func Read(T : Tree) -> Case_Desc is
+            var Cases : Vector<Pair> := [];
+            var Default : optional Tree := null;
+
+            for I in 2..Num_Operands(T) forward loop
+                const Case_Pair := Nth_Operand(T, I);
+                const Selector := Read_Selector(Case_Pair);
+                const Body := Nth_Operand(Case_Pair, Tree::Reference_Referent_Op);
+
+                if Is_Default_Case(Selector) then
+                    Default := Body;
+                else
+                    Cases |= (Selector => Selector, Body => Body);
+                end if
+            end loop
+            
+            return (Expr => Nth_Operand(T, 1), Cases => Cases,
+                Default => Default);
+        end func Read
+    end class Case_Desc
+end class SailGate::Sema::Control_Flow_Desc

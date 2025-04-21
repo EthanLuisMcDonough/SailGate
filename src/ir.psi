@@ -2,6 +2,11 @@ import PSC::Reflection;
 import PSC::Reflection::Source_Position;
 import SailGate::Prelude;
 
+/// Interface between ParaSail AST and SailGate lowering
+/// that serves as an "intermedite format". SailGate converts
+/// DSL code into this common format, and then each target's
+/// respective lowerer (just VHDL for now, but could include YOSYS
+/// and Verilog in the future) converts it into RTL code.
 interface SailGate::IR<> is
     type Scalar_Type is Enum<[#logic, #bool]>;
     type Pos is optional Source_Position;
@@ -31,10 +36,18 @@ interface SailGate::IR<> is
     /// it has some additional encapsulation we don't need here
     interface Domain<> is
         const Kind : Prelude::Domain_Kind;
+        const Decl : Reflection::Decl;
         const Name : Univ_String;
-        const Full_Name : Univ_String;
 
+        op "=?"(L, R : Domain) -> Ordering;
+
+        func Module(D : Domain) -> Univ_String;
+        func Full_Name(D : Domain) -> Univ_String;
         func To_String(D : Domain) -> Univ_String;
+        func Is_Canon_Async(D : Domain) -> Boolean;
+        func Compatible(L, R : Domain) -> Boolean;
+        func Force_Dom(L, R : Domain) -> Domain;
+        func Ok_In_Module(D : Domain; Mod_Name : Univ_String) -> Boolean;
     end interface Domain
 
     /// RTL type qualified with clock domain
@@ -55,6 +68,7 @@ interface SailGate::IR<> is
         func Get_Vec(T : Type {T.Kind == #vec}) -> Vec_Type;
         func To_String(T : Type) -> Univ_String;
 
+        func Size(T : Type) -> Univ_Integer;
         func Valid_Field_Type(T : Type) -> Boolean;
         op "=?"(L, R : Type) -> Ordering;
     end interface Type
@@ -62,7 +76,8 @@ interface SailGate::IR<> is
     interface Register<> is
         const Type : Type;
         const Name : Univ_String;
-        const Init : Univ_String;
+        const Init : optional Literal;
+        const Source : Pos;
     end interface Register
 
     type Port_Def is Ordered_Map<Univ_String, Type>;
@@ -80,87 +95,154 @@ interface SailGate::IR<> is
 
     interface Wire<> implements Concurrent_Def<> is
         const Name : Univ_String;
-        const Wire_Type : Type;
+        const Type : Type;
+        const Source : Pos;
     end interface Wire
 
     interface Instance<> implements Concurrent_Def<> is
         const Name : Univ_String;
         const Inputs : Expr_Map;
+        const Domain_Args : Vector<IR::Domain>;
         const Entity : Univ_String;
+        const Source : Pos;
     end interface Instance
 
     type Concurrent_Defs is Vector<Concurrent_Def+>;
 
+    abstract interface Literal_Value<> is
+        func To_String(L : Literal_Value) -> Univ_String;
+    end interface Literal_Value
+
+    interface Literal_Str<> implements Literal_Value<> is
+        const Str : Univ_String;
+        func To_String(L : Literal_Str) -> Univ_String
+            is ("\"" | L.Str | "\"");
+    end interface Literal_Str
+
+    interface Literal_Num<> implements Literal_Value<> is
+        const Num : Univ_Integer;
+        func To_String(L : Literal_Num) -> Univ_String
+            is (To_String(L.Num));
+    end interface Literal_Num
+
+    interface Literal_Char<> implements Literal_Value<> is
+        const Ch : Univ_Character;
+        func To_String(L : Literal_Char) -> Univ_String
+            is ("'" | L.Ch | "'");
+    end interface Literal_Char
+
     abstract interface Expression<> is
         func Get_Type(E : Expression) -> Type;
+        func To_String(E : Expression) -> Univ_String;
+        func Get_Source(E : Expression) -> Pos;
     end interface Expression
 
     interface Identifier<> implements Expression<> is
-        const Original_Name : Univ_String;
         const Name : Univ_String;
         const Type : Type;
+        const Source : Pos;
 
         func Get_Type(I : Identifier) -> Type is (I.Type);
+        func To_String(I : Identifier) -> Univ_String is (I.Name);
+        func Get_Source(I : Identifier) -> Pos is (I.Source);
     end interface Identifier
 
-    type Comapre_Op is Enum<[#less_op, #leq_op,
-        #equal_op, #neq_op, #geq_op, #greater_op]>;
+    interface Inst_Access<> implements Expression<> is
+        const Name : Univ_String;
+        const Property : Univ_String;
+        const Type : Type;
+        const Source : Pos;
+
+        func Get_Type(I : Inst_Access) -> Type is (I.Type);
+        func To_String(I : Inst_Access) -> Univ_String
+            is (I.Name | "." | I.Property);
+        func Get_Source(I : Inst_Access) -> Pos is (I.Source);
+    end interface Inst_Access
+
+    interface Literal<> implements Expression<> is
+        const Value : Literal_Value+;
+        const Type : Type;
+        const Source : Pos;
+
+        func Get_Type(L : Literal) -> Type is (L.Type);
+        func To_String(L : Literal) -> Univ_String is (To_String(L.Value));
+        func Get_Source(L : Literal) -> Pos is (L.Source);
+    end interface Literal
+
     type Binary_Op is Enum<[#plus_op, #minus_op, #times_op,
         #divide_op, #combine_op, #left_shift_op, #right_shift_op,
-        #and_op, #or_op, #xor_op]>
-    type Unary_Op is Enum<[#not_op]>;
-
-    interface Comparison<> implements Expression<> is
-        const Left : Expression+;
-        const Right : Expression+;
-        const Op : Comapre_Op;
-
-        func Get_Type(I : Identifier) -> Type;
-    end interface Comparison
+        #and_op, #or_op, #xor_op, #less_op, #leq_op,
+        #equal_op, #neq_op, #geq_op, #greater_op, #combine_op]>
+    type Unary_Op is Enum<[#not_op, #minus_op]>;
+    type Conversion_Op is Enum<[#to_uint, #to_int, #to_vec,
+        #sync, #unsafe_cast]>;
 
     interface Binary<> implements Expression<> is
         const Left : Expression+;
         const Right : Expression+;
         const Op : Binary_Op;
+        const Type : Type;
+        const Source : Pos;
 
-        func Get_Type(B : Binary) -> Type;
+        func Get_Type(B : Binary) -> Type is (B.Type);
+        func To_String(B : Binary) -> Univ_String is ("(" | To_String(B.Op) |
+            ": " | To_String(B.Left) | ", " | To_String(B.Right) | ")");
+        func Get_Source(B : Binary) -> Pos is (B.Source);
     end interface Binary
 
     interface Unary<> implements Expression<> is
         const Value : Expression+;
         const Op : Unary_Op;
+        const Type : Type;
+        const Source : Pos;
 
-        func Get_Type(U : Unary) -> Type is (Get_Type(U.Value));
+        func Get_Type(U : Unary) -> Type is (U.Type);
+        func To_String(U : Unary) -> Univ_String is ("(" |
+            To_String(U.Op) | ": " | To_String(U.Value) | ")");
+        func Get_Source(U : Unary) -> Pos is (U.Source);
     end interface Unary
 
     interface Slice<> implements Expression<> is
         const Start : Univ_Integer;
         const End : Univ_Integer;
         const Value : Expression+;
+        const Type : Type;
+        const Source : Pos;
 
-        func Get_Type(U : Unary) -> Type;
+        func Get_Type(S : Slice) -> Type is (S.Type);
+        func To_String(S : Slice) -> Univ_String is ("(slice: " |
+            To_String(S.Value) | ", " | S.Start | ", " | S.End | ")");
+        func Get_Source(S : Slice) -> Pos is (S.Source);
     end interface Slice
 
     interface Index<> implements Expression<> is
         const Index : Univ_Integer;
         const Value : Expression+;
+        const Type : Type;
+        const Source : Pos;
 
-        func Get_Type(U : Unary) -> Type;
+        func Get_Type(I : Index) -> Type is (I.Type);
+        func To_String(I : Index) -> Univ_String is ("(index: " |
+            To_String(I.Value) | ", " | I.Index | ")");
+        func Get_Source(I : Index) -> Pos is (I.Source);
     end interface Index
 
-    interface Concat<> implements Expression<> is
-        const Index : Univ_Integer;
-        const Value : Expression+;
+    interface Conversion<> implements Expression<> is
+        const Converted : Expression+;
+        const To : Type;
+        const Op : Conversion_Op;
+        const Source : Pos;
 
-        func Get_Type(U : Unary) -> Type;
-    end interface Concat
-
-    interface Invocation<> implements Expression<> is
-        const Func_Name : Univ_String;
-        const Args : Vector<Expression+>;
-    end interface Invocation
+        func Get_Type(C : Conversion) -> Type is (C.To);
+        func Get_From_Type(C : Conversion) -> Type is (Get_Type(C.Converted));
+        func To_String(C : Conversion) -> Univ_String is ("(" | 
+            To_String(C.Op) | ": " | To_String(C.Converted) | ")");
+        func Get_Source(C : Conversion) -> Pos is (C.Source);
+    end interface Conversion
 
     abstract interface Statement<> is
+        func Get_Dom(S : Statement) -> Domain;
+        func Get_Source(S : Statement) -> Pos;
     end interface Statement
 
     type Block is Vector<Statement+>;
@@ -173,30 +255,54 @@ interface SailGate::IR<> is
     interface Assignment<> implements Statement<> is
         const Asignee : Expression+;
         const Value : Expression+;
+        const Source : Pos;
+
+        func Get_Dom(A : Assignment) -> Domain is (Get_Type(A.Value).Dom);
+        func Get_Source(A : Assignment) -> Pos is (A.Source);
     end interface Assignment
 
     interface If_Chain<> implements Statement<> is
+        const Dom : Domain;
         const Base : Condition_Body;
         const Elifs : Vector<Condition_Body>;
         const Else : optional Block;
+        const Source : Pos;
+
+        func Get_Dom(I : If_Chain) -> Domain is (I.Dom);
+        func Get_Source(I : If_Chain) -> Pos is (I.Source);
     end interface If_Chain
 
+    type Literals is Vector<Literal>;
+
     interface Case_Check<> is
-        const Values : Vector<Univ_String>;
+        const Values : Literals;
+        const Body : Block;
     end interface Case_Check
 
     interface Switch_Case<> implements Statement<> is
+        const Expr : Expression+;
+        const Cases : Vector<Case_Check>;
+        const Default : optional Block;
+        const Source : Pos;
 
+        func Get_Dom(S : Switch_Case) -> Domain is (Get_Type(S.Expr).Dom);
+        func Get_Source(S : Switch_Case) -> Pos is (S.Source);
     end interface Switch_Case
 
-    interface Process<> is
-        const Dom : Domain;
-        const Body : Block;
-        const List : Vector<Univ_String>;
+    abstract interface Process<> is
     end interface Process
 
-    type Implicit_Processes is Ordered_Map<Univ_String, Process>;
-    type Processes is Vector<Process>;
+    interface Dom_Process<> implements Process<> is
+        const Dom : Domain;
+        const Body : Block;
+    end interface Dom_Process
+
+    interface Empty_Process<> implements Process<> is
+        const Body : Block;
+    end interface Empty_Process
+
+    type Implicit_Processes is Ordered_Map<Univ_String, Dom_Process>;
+    type Processes is Vector<Process+>;
 
     /// Local signature used by entity
     interface Component<> is
@@ -217,8 +323,7 @@ interface SailGate::IR<> is
 
         const Domains : Domain_Map;
         const Impl : Implicit_Processes;
-        const Expl : Processes;
-        const Test_Bench : optional Process;
+        const Test_Bench : optional Empty_Process;
         const Concurrent : Concurrent_Defs;
     end interface Entity
 end interface SailGate::IR

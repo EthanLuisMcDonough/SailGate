@@ -5,11 +5,26 @@ import SailGate::Util::Result;
 import PSC::Reflection;
 
 interface SailGate::Sema::IR_Builder<> is
-    interface Entity_Builder<> is
+    abstract interface Statement_Builder<> is
+        /// Adds statement to builder. Returns error if statment is
+        /// semantically incorrect
+        func Add_Stmt(var S : Statement_Builder;
+            Stmt : IR::Statement+) -> optional Sema_Error;
+
+        /// Propogate entity name so that sub-builders can check
+        /// if a value is out of scope
+        func Context(S : Statement_Builder) -> Reader::Context;
+    end interface Statement_Builder
+
+    interface Entity_Builder<> implements Statement_Builder<> is
         type Build_Result is Result<IR::Entity, Sema_Error>;
         type Type_Result is Result<IR::Type, Sema_Error>;
 
-        func Create(Name : Univ_String) -> Entity_Builder;
+        const Name : Univ_String;
+        var Inputs : IR::Port_Def := [];
+        var Outputs : IR::Port_Def := [];
+
+        func Create(Name : Univ_String; Source : IR::Pos) -> Entity_Builder;
 
         /// Adds clock domain parameter to entity. This should not be called
         /// if Add_Clock_Obj is also called.
@@ -20,32 +35,84 @@ interface SailGate::Sema::IR_Builder<> is
         func Add_Clock_Obj(var E : Entity_Builder; Dom : IR::Domain)
             -> optional Sema_Error;
 
-        /// Reads an RTL type. This function isn't in the reader class because
-        /// it takes the entity's clock domain scope into account.
-        func Read_Type(E : Entity_Builder; T : Reflection::Tree) -> Type_Result;
+        func Context(E : Entity_Builder) -> Reader::Context;
 
+        //func Get_Inputs()
+
+        /// Adds entity in port
         func Add_Input(var E : Entity_Builder;
             Name : Univ_String;
             Type : IR::Type) -> optional Sema_Error;
 
+        /// Adds entity out port
         func Add_Output(var E : Entity_Builder;
             Name : Univ_String;
             Type : IR::Type) -> optional Sema_Error;
 
+        /// Adds entity register
         func Add_Register(var E : Entity_Builder;
-            Name : Univ_String;
-            Type : IR::Type {Valid_Field_Type(Type)};
-            Init : optional Reflection::Tree := null) 
-                -> optional Sema_Error;
+            Reg : IR::Register) -> optional Sema_Error;
 
+        /// Adds entity wire
         func Add_Wire(var E : Entity_Builder;
             W : IR::Wire) -> optional Sema_Error;
 
-        func Output_Assign(var E : Entity_Builder;
-            Name : Univ_String;
-            T : Reflection::Tree) -> optional Sema_Error;
+        func Add_Stmt(var E : Entity_Builder;
+            Stmt : IR::Statement+) -> optional Sema_Error;
 
+        /// Sets value of output
+        func Output_Assign(var E : Entity_Builder;
+            Name : Univ_String; Val : IR::Expression+) -> optional Sema_Error;
+
+        /// Marks the entity as having a return value
+        func Set_Returned(var E : Entity_Builder);
+
+        /// Final checks on entity
+        func Finalize(var E : Entity_Builder) -> optional Sema_Error;
+
+        /// Creates entity
         func Build(E : Entity_Builder) -> IR::Entity;
     end interface Entity_Builder
+
+    /// If statement builder
+    interface If_Builder<> implements Statement_Builder<> is
+        func Create(Ctx : Reader::Context; Init_Cond : IR::Expression+;
+            Source : IR::Pos) -> If_Builder;
+
+        // Adds statement to current active if block
+        func Add_Stmt(var B : If_Builder;
+            Stmt : IR::Statement+) -> optional Sema_Error;
+
+        // Adds elsif statement to if chain
+        func Add_Elif(var B : If_Builder; Condition : IR::Expression+)
+            -> optional Sema_Error;
+
+        // Sets active if block to else block
+        func Add_Else(var B : If_Builder);
+
+        func Context(I : If_Builder) -> Reader::Context;
+
+        /// Creates if statement chain
+        func Build(E : If_Builder) -> IR::If_Chain;
+    end interface If_Builder
+
+    /// Case statement builder
+    interface Case_Builder<> implements Statement_Builder<> is
+        func Create(Ctx : Reader::Context; Expr : IR::Expression+;
+            Source : IR::Pos) -> Case_Builder;
+
+        // Adding blocks to case
+        func Add_Selector(var B : Case_Builder; S : IR::Literals);
+        func Add_Default(var B : Case_Builder);
+
+        // Adds statement to current active if block
+        func Add_Stmt(var B : Case_Builder;
+            Stmt : IR::Statement+) -> optional Sema_Error;
+
+        func Context(C : Case_Builder) -> Reader::Context;
+
+        /// Creates if statement chain
+        func Build(E : Case_Builder) -> IR::Switch_Case;
+    end interface Case_Builder
 
 end interface SailGate::Sema::IR_Builder

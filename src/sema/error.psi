@@ -5,9 +5,13 @@ interface SailGate::Sema::Sema_Error<> is
         #mutable_field, #optional_field, #invalid_inst, #ref_field_type,
         #no_run_fn, #invalid_run_return, #invalid_anno, #non_const_val,
         #field_init_val, #field_non_vec_align, #invalid_param_dom_constr,
-        #invalid_param_dom_type, #invalid_param_dom_init,
+        #invalid_param_dom_type, #invalid_param_dom_init, #invalid_invocation,
         #invalid_dom_obj, #dom_obj_in_abstract, #invalid_dom_arg,
-        #invalid_rtl_type, #domain_out_of_scope]>;
+        #invalid_rtl_type, #domain_out_of_scope, #invalid_construct,
+        #invalid_literal, #literal_out_of_range, #invalid_concat,
+        #invalid_binary, #invalid_slice_syntax, #index_out_of_range,
+        #slice_bad_size, #mismatched_domain, #expected_switch,
+        #item_after_return, #invalid_return_value]>;
 
     const Kind : Sema_Error_Kind;
     const Source : optional Reflection::Source_Position;

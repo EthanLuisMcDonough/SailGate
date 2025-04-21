@@ -3,18 +3,17 @@ import PSC::Reflection::*;
 import SailGate::Sema::Sema_Error;
 import SailGate::Names;
 import SailGate::Sema::Util;
+import SailGate::Sema::Debug;
 import SailGate::IR;
 import SailGate::Util::Starts_With;
 import SailGate::Util::Result;
+import SailGate::Util::Strip_Quotes;
 
 class SailGate::Sema::Reader is
     type Align_Result is Result<IR::Alignment, Sema_Error>;
 
-    const PLUS := "\"+\"";
-    const MINUS := "\"+\"";
-    const MULT := "\"*\"";
-    const DIV := "\"/\"";
-    const FROM_UNIV := "\"from_univ\"";
+    ///                        DOMAIN/TYPE PARSING                        ///
+    /// These functions are related to reading in types and clock domains ///
 
     /// Read alignment clause from annotation metadata
     func Read_Alignment(D : Tree {Kind(D) == #annotation}) -> Align_Result is
@@ -35,7 +34,8 @@ class SailGate::Sema::Reader is
         // Makes sure we're calling the right function
         const Call := Util::Get_Call_Operation(Invoc);
         if Call is null or else
-                Util::Get_Decl_Name(Call) != Names::Functions::Align then
+            Util::Get_Decl_Name(Call) != Names::Functions::Align
+        then
             return Anno_Err;
         end if
 
@@ -98,11 +98,10 @@ class SailGate::Sema::Reader is
                         return Right_Err;
                     end if
 
-                    if Ok(Left_Err).Kind != #async then
-                        return Left_Err;
-                    else
-                        return Right_Err;
-                    end if
+                    const Right_Dom := Ok(Right_Err);
+                    const Left_Dom := Ok(Left_Err);
+                    return Domain_Result::Ok(Force_Dom(
+                        Left_Dom, Right_Dom));
                 [..] =>
                     return Dom_Err;
             end case
@@ -123,6 +122,473 @@ class SailGate::Sema::Reader is
 
         return Dom_Err;
     end func Read_Dom_Param
+
+    ///                 EXPRESSION PARSING                 ///
+    /// These functions are related to parsing expressions ///
+    
+    /// Check if function is actually a rewritten binary operator. This happens
+    /// in resolved expressions sometimes
+    func Invoc_Is_Binary(Op : Reflection::Decl {Kind(Op) == #operation}) -> Boolean is
+        case Id(Op) of
+            [Names::Ops::Plus | Names::Ops::Minus | Names::Ops::Multiply |
+             Names::Ops::Divide | Names::Ops::Concat | Names::Ops::And |
+             Names::Ops::Or | Names::Ops::Xor | Names::Ops::Shift_Left |
+             Names::Ops::Shift_Right | Names::Ops::To_Bool] =>
+                return Util::Op_Param_Count(Op) == 3;
+            [..] =>
+                return #false;
+        end case
+    end func Invoc_Is_Binary
+
+    /// Check if function is actually a rewritten unary operator. Similar to previous
+    /// function
+    func Invoc_Is_Unary(Op : Reflection::Decl {Kind(Op) == #operation}) -> Boolean is
+        case Id(Op) of
+            [Names::Ops::Not | Names::Ops::Minus] =>
+                return Util::Op_Param_Count(Op) == 2;
+            [..] =>
+                return #false;
+        end case
+    end func Invoc_Is_Unary
+
+    func Invoc_Is_Conversion(Op : Reflection::Decl {Kind(Op) == #operation}) -> Boolean is
+        case Id(Op) of
+            [Names::Functions::Logic_Vec | Names::Functions::To_IVec |
+             Names::Functions::To_UVec | Names::Functions::Sync |
+             Names::Functions::Unsafe_Cast] =>
+                return Util::Op_Param_Count(Op) == 2;
+            [..] =>
+                return #false;
+        end case
+    end func Invoc_Is_Conversion
+
+    func Invoc_Is_Indexing(Op : Reflection::Decl {Kind(Op) == #operation}) -> Boolean is
+        case Id(Op) of
+            [Names::Ops::Indexing | Names::Ops::Var_Indexing] =>
+                return Util::Op_Param_Count(Op) == 3;
+            [..] =>
+                return #false;
+        end case
+    end func Invoc_Is_Indexing
+
+    /// Walks literal value and stores its resolved type
+    func Walk_From_Univ(T : Tree; Type : IR::Type) -> Expr_Result is
+        var Lit : optional IR::Literal_Value+ := null;
+        const Tree_Src := Util::Find_Tree_Source(T);
+
+        // Read simple identifier literals
+        if Kind(T) == #identifier then
+            const IS := Identifier(T);
+            case Lit_Kind(T) of
+                // Read logic literal ('0' or '1')
+                [#char_literal] =>
+                    const Ch_Val := IS[2];
+                    if Type.Kind == #scalar and then
+                        Get_Scalar(Type) == #logic and then
+                        (Ch_Val == '0' or else Ch_Val == '1')
+                    then
+                        Lit := IR::Literal_Char::(Ch => Ch_Val);
+                    end if
+                // Read bit string literal
+                [#string_literal] =>
+                    const Stripped_Str := Strip_Quotes(IS);
+                    if Type.Kind == #vec and then
+                        Prelude::Util::Is_Vec_Str(Stripped_Str, Get_Vec(Type).Size)
+                    then
+                        Lit := IR::Literal_Str::(Str => Stripped_Str);
+                    end if
+            end case
+        end if
+
+        // Try to read number if we don't have a literal value yet
+        // Sometimes a number literal can be nested inside a constant expression
+        // e.g. -10 being a call to the negation operator
+        const Int_Val := Reader::Read_Const_Int(T);
+        if Lit is null and then Int_Val not null and then Type.Kind == #vec then
+            const Vec_Type := Get_Vec(Type);
+            if (case Vec_Type.Kind of
+                [#int] => Prelude::Util::In_SBounds(Int_Val, Vec_Type.Size);
+                [..] => Prelude::Util::In_UBounds(Int_Val, Vec_Type.Size))
+            then
+                Lit := IR::Literal_Num::(Num => Int_Val);
+            else
+                return Expr_Result::Err((Kind => #literal_out_of_range,
+                    Source => Util::Find_Tree_Source(T)));
+            end if
+        end if
+
+        if Lit not null then
+            return Expr_Result::Ok(IR::Literal::(
+                Value => Lit, Type => Type, Source => Tree_Src));
+        else
+            return Expr_Result::Err((Kind => #invalid_construct,
+                Source => Util::Find_Tree_Source(T)));
+        end if
+    end func Walk_From_Univ
+
+    /// Logic shared between both walk binary visitors
+    func Walk_Binary_Shared(Ctx : Context; Bin_Op : IR::Binary_Op;
+        Left : Tree; Right : Tree; Type : IR::Type; Src : IR::Pos) -> Expr_Result
+    is
+        // Walk left op
+        const Walk_Res_Left := Walk_Expr(Ctx, Left);
+        if Is_Err(Walk_Res_Left) then
+            return Expr_Result::Err(Err(Walk_Res_Left));
+        end if
+        const Left_Expr := Ok(Walk_Res_Left);
+
+        // Walk right op
+        const Walk_Res_Right := Walk_Expr(Ctx, Right);
+        if Is_Err(Walk_Res_Right) then
+            return Expr_Result::Err(Err(Walk_Res_Right));
+        end if
+        const Right_Expr := Ok(Walk_Res_Right);
+
+        const Left_Type := Get_Type(Left_Expr);
+        const Right_Type := Get_Type(Right_Expr);
+
+        // Make sure the left and right type sizes match
+        // the resolved type when an async and clocked value
+        // are concatenated
+        // e.g. const A : Vec<11> := Vec::<10, D>::1 | Vec::<5>::1;
+        // This happens because ParaSail doesn't always play nice with functions
+        // that return computed types. "|" and Range::Slice do this. They get
+        // assigned resolved types, but ParaSail doesn't check if these computed
+        // types satisify the conditions they need to
+        if Bin_Op == #combine_op then
+            if Size(Left_Type) + Size(Right_Type) != Size(Type)
+                or else not Compatible(Left_Type.Dom, Right_Type.Dom)
+            then
+                return Expr_Result::Err((
+                    Source => Util::Find_Tree_Source(Left),
+                    Kind => #invalid_concat));
+            end if
+        end if
+
+        const Expr : IR::Binary := (Left => Left_Expr,
+            Right => Right_Expr, Op => Bin_Op, Type => Type,
+            Source => Src);
+        return Expr_Result::Ok(Expr);
+    end func Walk_Binary_Shared
+
+    /// Logic shared between both walk unary visitors
+    func Walk_Unary_Shared(Ctx : Context; Un_Op : IR::Unary_Op;
+        Value : Tree; Type : IR::Type) -> Expr_Result
+    is
+        // Walk value op
+        const Walk_Res := Walk_Expr(Ctx, Value);
+        if Is_Err(Walk_Res) then
+            return Expr_Result::Err(Err(Walk_Res));
+        end if
+        const Value_Expr := Ok(Walk_Res);
+
+        const Expr : IR::Unary := (Value => Value_Expr,
+            Source => Util::Find_Tree_Source(Value),
+            Op => Un_Op, Type => Type);
+        return Expr_Result::Ok(Expr);
+    end func Walk_Unary_Shared
+
+    /// Read invocations that represent binary operations
+    func Walk_Binary_Invoc(Ctx : Context; 
+        T : Tree {Kind(T) == #invocation}; Op : Reflection::Decl
+        {Kind(Op) == #operation}; Type : IR::Type) -> Expr_Result
+    is
+        var Bin_Op : IR::Binary_Op := #plus_op;
+        const Src := Util::Find_Tree_Source(T);
+
+        // Add 1 for operation name
+        var Left := Nth_Operand(T, 1 + Tree::Binary_Left_Op);
+        var Right := Nth_Operand(T, 1 + Tree::Binary_Right_Op);
+
+        case Id(Op) of
+            [Names::Ops::Plus] =>
+                Bin_Op := #plus_op;
+            [Names::Ops::Minus] =>
+                Bin_Op := #minus_op;
+            [Names::Ops::Multiply] =>
+                Bin_Op := #times_op;
+            [Names::Ops::Divide] =>
+                Bin_Op := #divide_op;
+            [Names::Ops::Concat] =>
+                Bin_Op := #combine_op;
+            [Names::Ops::And] =>
+                Bin_Op := #and_op;
+            [Names::Ops::Or] =>
+                Bin_Op := #or_op;
+            [Names::Ops::Xor] =>
+                Bin_Op := #xor_op;
+            [Names::Ops::Shift_Left] =>
+                Bin_Op := #left_shift_op;
+            [Names::Ops::Shift_Right] =>
+                Bin_Op := #right_shift_op;
+            [Names::Ops::To_Bool] =>
+                // Check to_bool operator mask
+                case Identifier(Nth_Operand(T, 3)) of
+                    ["2#0010#"] => // "=="
+                        Bin_Op := #equal_op;
+                    ["2#1101#"] => // "!="
+                        Bin_Op := #neq_op;
+                    ["2#0001#"] => // "<"
+                        Bin_Op := #less_op;
+                    ["2#0011#"] => // "<="
+                        Bin_Op := #leq_op;
+                    ["2#0100#"] => // ">"
+                        Bin_Op := #greater_op;
+                    ["2#0110#"] => // ">="
+                        Bin_Op := #geq_op;
+                    [..] =>
+                        {*"Error: found invalid to_bool bitmask"* #false}
+                end case
+                const Compare_Call := Nth_Operand(T, 2);
+                Left := Nth_Operand(Compare_Call, 1 + Tree::Binary_Left_Op);
+                Right := Nth_Operand(Compare_Call, 1 + Tree::Binary_Right_Op);
+            [..] =>
+                {*"Unreachable"* #false};
+        end case
+
+        return Walk_Binary_Shared(Ctx, Bin_Op, Left, Right, Type, Src);
+    end func Walk_Binary_Invoc
+
+    /// Read invocations that represent unary operations
+    func Walk_Unary_Invoc(Ctx : Context; T : Tree {Kind(T) == #invocation};
+        Op : Reflection::Decl {Kind(Op) == #operation}; Type : IR::Type) -> Expr_Result
+    is
+        var Un_Op : IR::Unary_Op := #minus_op;
+        case Id(Op) of
+            [Names::Ops::Minus] =>
+                Un_Op := #minus_op;
+            [Names::Ops::Not] =>
+                Un_Op := #not_op;
+            [..] =>
+                {*"Unreachable"* #false};
+        end case
+
+        // Add 1 for operation name
+        const Value := Nth_Operand(T, 1 + Tree::Unary_Val_Op);
+        return Walk_Unary_Shared(Ctx, Un_Op, Value, Type);
+    end func Walk_Unary_Invoc
+
+    /// Walks the "actual" binary operations. These are mostly comparisons
+    /// since they keep their underlying binary operation data after resolution
+    func Walk_Expr_Binary(Ctx : Context; T : Tree {Kind(T) == #binary};
+        Type : IR::Type) -> Expr_Result
+    is
+        const Left := Nth_Operand(T, Tree::Binary_Left_Op);
+        const Right := Nth_Operand(T, Tree::Binary_Right_Op);
+        const Tree_Src := Util::Find_Tree_Source(T);
+        const Bin_Op := Binary_Op(T);
+
+        // Check if op is supported in IR
+        const Bin_Cast : Univ_Enumeration := [[Bin_Op]];
+        if Bin_Cast not in IR::Binary_Op then
+            return Expr_Result::Err((
+                Kind => #invalid_construct,
+                Source => Tree_Src));
+        end if
+
+        return Walk_Binary_Shared(Ctx, Bin_Cast, Left, Right, Type, Tree_Src);
+    end func Walk_Expr_Binary
+
+    func Walk_Expr_Unary(Ctx : Context; T : Tree {Kind(T) == #unary};
+        Type : IR::Type) -> Expr_Result
+    is
+        const Value := Nth_Operand(T, Tree::Binary_Left_Op);
+        const Tree_Src := Util::Find_Tree_Source(T);
+        const Un_Op := Unary_Op(T);
+
+        // Check if op is supported in IR
+        const Un_Cast : Univ_Enumeration := [[Un_Op]];
+        if Un_Cast not in IR::Unary_Op then
+            return Expr_Result::Err((
+                Kind => #invalid_construct,
+                Source => Tree_Src));
+        end if
+
+        return Walk_Unary_Shared(Ctx, Un_Cast, Value, Type);
+    end func Walk_Expr_Unary
+
+    /// Read invocations that represent unary operations
+    func Walk_Conversion_Invoc(Ctx : Context; T : Tree {Kind(T) == #invocation};
+        Op : Reflection::Decl {Kind(Op) == #operation}; Type : IR::Type) -> Expr_Result
+    is
+        var Conv_Op : IR::Conversion_Op := #to_uint;
+        case Id(Op) of
+            [Names::Functions::Logic_Vec] =>
+                Conv_Op := #to_vec;
+            [Names::Functions::To_IVec] =>
+                Conv_Op := #to_int;
+            [Names::Functions::To_UVec] =>
+                Conv_Op := #to_uint;
+            [Names::Functions::Sync] =>
+                Conv_Op := #sync;
+            [Names::Functions::Unsafe_Cast] =>
+                Conv_Op := #unsafe_cast;
+            [..] =>
+                {*"Unreachable"* #false};
+        end case
+
+        // Value pre-conversion
+        const Inner_Tree := Nth_Operand(T, 2);
+        const Walk_Res := Walk_Expr(Ctx, Inner_Tree);
+        if Is_Err(Walk_Res) then
+            return Expr_Result::Err(Err(Walk_Res));
+        end if
+        const Value := Ok(Walk_Res);
+
+        const Conv_Expr : IR::Conversion := (
+            Source => Util::Find_Tree_Source(T),
+            Converted => Value, To => Type, Op => Conv_Op);
+        return Expr_Result::Ok(Conv_Expr);
+    end func Walk_Conversion_Invoc
+
+    /// Identifier reference
+    func Walk_Expr_Ident(Ctx : Context; 
+        T : Tree {Kind(T) == #identifier and then Lit_Kind(T) is null};
+        Type : IR::Type) -> Expr_Result
+    is
+        const Tree_Src := Util::Find_Tree_Source(T);
+        const Ident_Expr : IR::Identifier := (
+            Name => Identifier(T), Type => Type, Source => Tree_Src);
+        return Expr_Result::Ok(Ident_Expr);
+    end func Walk_Expr_Ident
+
+    /// Walks call to Range::Slice
+    func Walk_Slice_Invoc(Ctx : Context; T : Tree; Type : IR::Type) -> Expr_Result is
+        const Syn_Err := Expr_Result::Err((
+            Source => Util::Find_Tree_Source(T),
+            Kind => #invalid_slice_syntax));
+
+        // Get qualified name prefix
+        const QN := Nth_Operand(T, 1);
+        if QN is null or else Kind(QN) != #qualified_name then
+            return Syn_Err;
+        end if
+
+        // Get prefix type info
+        const Slice_Prefix := Nth_Operand(QN, 1);
+        const Slice_Type := Sem_Info(Slice_Prefix);
+
+        // Get inner value
+        const Inner_Tree := Nth_Operand(T, 2);
+        const Walk_Res := Walk_Expr(Ctx, Inner_Tree);
+        if Is_Err(Walk_Res) then
+            return Expr_Result::Err(Err(Walk_Res));
+        end if
+        const Value := Ok(Walk_Res);
+        const Inner_Type := Get_Type(Value);
+
+        // Get actual values
+        const Actuals := Trees_Of_Actuals(Slice_Type);
+        {|Actuals| == 2}
+        const Start_Tree := Actuals[1];
+        const End_Tree := Actuals[2];
+
+        // Read start value
+        const Start := Reader::Read_Const_Int(Start_Tree);
+        if Start is null or else Start < 0
+            or else Start >= Size(Inner_Type)
+        then
+            return Expr_Result::Err((
+                Source => Util::Find_Tree_Source(Start_Tree),
+                Kind => #index_out_of_range));
+        end if
+
+        // Read end value
+        const End := Reader::Read_Const_Int(End_Tree);
+        if End is null or else End < 0
+            or else End >= Size(Inner_Type)
+        then
+            return Expr_Result::Err((
+                Source => Util::Find_Tree_Source(End_Tree),
+                Kind => #index_out_of_range));
+        end if
+
+        // Check for size mismatch
+        // We have to check this for the same reasons we need
+        // to check the size and domain of concat opeations
+        const Total_Size := Prelude::Util::Calc_Slice_Size(
+            Size(Inner_Type), Start, End);
+        if Size(Type) != Total_Size then
+            return Expr_Result::Err((
+                Source => Util::Find_Tree_Source(T),
+                Kind => #slice_bad_size));
+        end if
+
+        // Check for mismatched domain
+        if Inner_Type.Dom != Type.Dom then
+            return Expr_Result::Err((
+                Source => Util::Find_Tree_Source(Inner_Tree),
+                Kind => #mismatched_domain));
+        end if
+
+        const Slice_Expr : IR::Slice := (
+            Source => Util::Find_Tree_Source(T),
+            Start => Start, End => End,
+            Type => Type, Value => Value);
+        return Expr_Result::Ok(Slice_Expr);
+    end func Walk_Slice_Invoc
+
+    /// Walk single value indexing (e.g. My_Vec[3])
+    func Walk_Indexing_Invoc(Ctx : Context; T : Tree; Type : IR::Type) -> Expr_Result is
+        // Get container tree
+        const Container_Tree := Nth_Operand(T, 2);
+        const Walk_Res := Walk_Expr(Ctx, Container_Tree);
+        if Is_Err(Walk_Res) then
+            return Expr_Result::Err(Err(Walk_Res));
+        end if
+        const Container := Ok(Walk_Res);
+        const Container_Type := Get_Type(Container);
+
+        // Read index
+        const Index_Tree := Nth_Operand(T, 3);
+        const Index := Reader::Read_Const_Int(Index_Tree);
+        if Index is null then
+            return Expr_Result::Err((
+                Source => Util::Find_Tree_Source(Index_Tree),
+                Kind => #non_const_val));
+        end if
+
+        // Check index bounds
+        if Index >= Size(Container_Type) or else Index < 0 then
+            return Expr_Result::Err((
+                Source => Util::Find_Tree_Source(Index_Tree),
+                Kind => #index_out_of_range));
+        end if
+
+        const Ind_Expr : IR::Index := (
+            Source => Util::Find_Tree_Source(T),
+            Index => Index, Value => Container, Type => Type);
+        return Expr_Result::Ok(Ind_Expr);
+    end func Walk_Indexing_Invoc
+
+    /// Takes care of invocations of any kind
+    func Walk_Expr_Invoc(Ctx : Context; T : Tree {Kind(T) == #invocation};
+        Type : IR::Type) -> Expr_Result
+    is
+        const Call_Op := Util::Get_Call_Operation(T);
+        const Call_Full_Name := Util::Get_Decl_Name(Call_Op);
+        const Call_Id := Id(Call_Op);
+
+        if Invoc_Is_Binary(Call_Op) then
+            return Walk_Binary_Invoc(Ctx, T, Call_Op, Type);
+        elsif Invoc_Is_Unary(Call_Op) then
+            return Walk_Unary_Invoc(Ctx, T, Call_Op, Type);
+        elsif Call_Id == Names::Ops::From_Univ then
+            return Walk_From_Univ(Nth_Operand(T, 2), Type);
+        elsif Invoc_Is_Conversion(Call_Op) then
+            return Walk_Conversion_Invoc(Ctx, T, Call_Op, Type);
+        elsif Call_Full_Name == Names::Functions::Slice then
+            return Walk_Slice_Invoc(Ctx, T, Type);
+        elsif Invoc_Is_Indexing(Call_Op) then
+            return Walk_Indexing_Invoc(Ctx, T, Type);
+        end if
+
+        return Expr_Result::Err((Kind => #invalid_invocation,
+            Source => Util::Find_Tree_Source(T)));
+    end func Walk_Expr_Invoc
+
+    // We don't expect to see any identifiers inside a selector
+    const Selector_Ctx : Context := (Enclosing_Module => "");
 exports
     func Dom_Param(D : Decl) -> Domain_Result is
         const Dom_Name := Util::Get_Decl_Name(D);
@@ -189,7 +655,7 @@ exports
         end if
 
         return Domain_Result::Ok((Name => Id(D),
-            Kind => Dom_Kind, Full_Name => Dom_Name));
+            Kind => Dom_Kind, Decl => D));
     end func Dom_Param
 
     func Dom_Obj(D : Decl) -> Domain_Result is
@@ -233,7 +699,7 @@ exports
         end case
 
         return Domain_Result::Ok((Name => Id(D), 
-            Kind => Dom_Kind, Full_Name => Dom_Name));
+            Kind => Dom_Kind, Decl => D));
     end func Dom_Obj
 
     func Type_Is_Rtl(D : Decl) -> Boolean is
@@ -241,8 +707,8 @@ exports
         const Type_Mod_Name := Util::Get_Decl_Name(Type_Mod);
         case Type_Mod_Name of
             [Names::Types::Logic | Names::Types::Bool |
-                    Names::Types::SVec | Names::Types::UVec |
-                    Names::Types::LVec] =>
+             Names::Types::SVec | Names::Types::UVec |
+             Names::Types::LVec] =>
                 return #true;
             [..] =>
                 return #false;
@@ -305,8 +771,9 @@ exports
     end func Type_To_Rtl
 
     /// Read alignment and add it to type
-    func Add_Alignment(var T : IR::Type; Align_Tree : optional Tree)
-            -> optional Sema_Error is
+    func Add_Alignment(var T : IR::Type;
+        Align_Tree : optional Tree) -> optional Sema_Error
+    is
         if Align_Tree is null then
             return;
         end if
@@ -366,11 +833,19 @@ exports
                 const Invoc_Mod := Associated_Module(Invoc_Op);
                 const Func_Id := Id(Invoc_Op);
 
+                const Left := Read_Const_Int(Nth_Operand(T, 2));
+
+                // Check for unary negation
+                if Num_Operands(T) == 2 and then Func_Id == Names::Ops::Minus
+                    and then Left not null
+                then
+                    return -Left;
+                end if
+
                 // Check for generic "integer" operation invocations
                 case Func_Id of
                     [Names::Ops::Plus | Names::Ops::Minus | Names::Ops::Multiply |
-                            Names::Ops::Divide] =>
-                        const Left := Read_Const_Int(Nth_Operand(T, 2));
+                     Names::Ops::Divide] =>
                         const Right := Read_Const_Int(Nth_Operand(T, 3));
                         if Right not null and then Left not null then
                             case Func_Id of
@@ -387,13 +862,126 @@ exports
                 case Util::Get_Decl_Name(Invoc_Op) of
                     // Function used to check slice size in prelude
                     [Names::Functions::Calc_Slice_Size] =>
-                        const Left := Read_Const_Int(Nth_Operand(T, 3));
-                        const Right := Read_Const_Int(Nth_Operand(T, 4));
-                        if Right not null and then Left not null then
-                            return |Left - Right| + 1;
+                        const OG_Len := Read_Const_Int(Nth_Operand(T, 2));
+                        const Start := Read_Const_Int(Nth_Operand(T, 3));
+                        const End := Read_Const_Int(Nth_Operand(T, 4));
+                        if OG_Len not null and then Start not null and then
+                            End not null and then Start < OG_Len and then
+                            End < OG_Len
+                        then
+                            return Prelude::Util::Calc_Slice_Size(
+                                OG_Len, Start, End);
                         end if
                 end case
         end case
         return null;
     end func Read_Const_Int
+
+    func Walk_Expr(Ctx : Context; Expr_Tree : Tree) -> Expr_Result is
+        // Prefer resolved interpretation over raw interpretation
+        const T := Util::Resolved(Expr_Tree);
+        const SI := Sem_Info(T);
+
+        if SI is null then
+            Println("OH NO");
+            if Sem_Info(Expr_Tree) not null then
+                Println("solution");
+            end if
+        end if
+        const Src := Util::Find_Tree_Source(T);
+
+        // Read expression type
+        const Expr_Type_Err := Reader::Type_To_Rtl(SI, Src);
+        if Is_Err(Expr_Type_Err) then
+            return Err(Err(Expr_Type_Err));
+        end if
+        const Expr_Type := Ok(Expr_Type_Err);
+
+        // Check if refers to domains inside current module
+        if not Ok_In_Module(Expr_Type.Dom, Ctx.Enclosing_Module) then
+            return Expr_Result::Err((Source => Src,
+                Kind => #domain_out_of_scope));
+        end if
+
+        case Kind(T) of
+            [#invocation] =>
+                return Walk_Expr_Invoc(Ctx, T, Expr_Type);
+            [#unary] =>
+                return Walk_Expr_Unary(Ctx, T, Expr_Type);
+            [#binary] =>
+                return Walk_Expr_Binary(Ctx, T, Expr_Type);
+            [#identifier] =>
+                return Walk_Expr_Ident(Ctx, T, Expr_Type);
+        end case
+
+        return Expr_Result::Err((Kind => #invalid_construct,
+            Source => Util::Find_Tree_Source(Expr_Tree)));
+    end func Walk_Expr
+
+    func Walk_Cond(Ctx : Context; Expr_Tree : Tree) -> Expr_Result is
+        const T := Util::Resolved(Expr_Tree);
+        if Kind(T) == #invocation then
+            const Call_Op := Util::Get_Call_Operation(T);
+            const Call_Full_Name := Util::Get_Decl_Name(Call_Op);
+            if Call_Full_Name == Names::Functions::Rtl_Bool_To_Bool then
+                return Walk_Expr(Ctx, Nth_Operand(T, 2));
+            end if
+        end if
+
+        return Walk_Expr(Ctx, Expr_Tree);
+    end func Walk_Cond
+
+    func Walk_Case_Value(Ctx : Context; Expr_Tree : Tree) -> Expr_Result is
+        const T := Util::Resolved(Expr_Tree);
+        if Kind(T) == #invocation then
+            const Call_Op := Util::Get_Call_Operation(T);
+            if Id(Call_Op) == Names::Ops::Switch then
+                return Walk_Expr(Ctx, Nth_Operand(T, 2));
+            end if
+        end if
+
+        return Expr_Result::Err((Kind => #expected_switch,
+            Source => Util::Find_Tree_Source(T)));
+    end func Walk_Case_Value
+
+    func Walk_Case_Selector(Expr_Tree : Tree; Case_Type : IR::Type;
+        var Literals : IR::Literals) -> optional Sema_Error
+    is
+        const T := Util::Resolved(Expr_Tree);
+
+        // Check for literals joined by "|"
+        if Kind(T) == #binary and then
+            Binary_Op(T) == #combine_op
+        then
+            const Left_Lit := Nth_Operand(T, Tree::Binary_Left_Op);
+            const Left_Err := Walk_Case_Selector(Left_Lit, Case_Type, Literals);
+            if Left_Err not null then
+                return Left_Err;
+            end if
+
+            const Right_Lit := Nth_Operand(T, Tree::Binary_Right_Op);
+            return Walk_Case_Selector(Right_Lit, Case_Type, Literals);
+        end if
+
+        // Reads the actual literals
+        if Kind(T) == #invocation then
+            const Call_Op := Util::Get_Call_Operation(T);
+            if Id(Call_Op) == Names::Ops::From_Univ then
+                const Lit_Expr_Res := Walk_From_Univ(
+                    Nth_Operand(T, 2), Case_Type);
+                if Is_Err(Lit_Expr_Res) then
+                    return Err(Lit_Expr_Res);
+                end if
+                case Ok(Lit_Expr_Res) of
+                    [L : IR::Literal] =>
+                        Literals |= L;
+                        return;
+                end case
+            end if
+        end if
+
+        // Throw an error if we haven't returned at this point
+        return (Kind => #invalid_construct,
+            Source => Util::Find_Tree_Source(Expr_Tree));
+    end func Walk_Case_Selector
 end class SailGate::Sema::Reader

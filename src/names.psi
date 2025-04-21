@@ -19,7 +19,6 @@ interface SailGate::Names<> is
         const Minus := "\"-\"";
         const Multiply := "\"*\"";
         const Divide := "\"/\"";
-        const Mod := "\"mod\"";
         const Not := "\"not\"";
         const Concat := "\"|\"";
         const And := "\"and\"";
@@ -27,7 +26,14 @@ interface SailGate::Names<> is
         const Xor := "\"xor\"";
         const Shift_Left := "\"<<\"";
         const Shift_Right := "\">>\"";
+        const Compare := "\"=?\"";
         const From_Univ := "\"from_univ\"";
+        const Indexing := "\"indexing\"";
+        const Var_Indexing := "\"var_indexing\"";
+        const To_Bool := "\"to_bool\"";
+
+        // It's an op now I guess
+        const Switch := "Switch";
     end interface Ops
 
     interface Functions<> is
@@ -36,6 +42,17 @@ interface SailGate::Names<> is
         const Reset := Prefix | "Reset";
         const Clk_Rst_En := Prefix | "Clk_Rst_En";
         const Align := Prefix | "Align";
+
+
+        // Conversion function names
+        const Logic_Vec := "Logic_Vec";
+        const To_IVec := "To_IVec";
+        const To_UVec := "To_UVec";
+        const Sync := "Sync";
+        const Unsafe_Cast := "Unsafe_Cast";
+        const Rtl_Bool_To_Bool := Types::Bool | "::" | Ops::To_Bool;
+
+        const Slice := Prefix | "Range::Slice";
 
         const Util_Prefix := Prefix | "Util::";
         const Calc_Slice_Size := Util_Prefix | "Calc_Slice_Size";
@@ -46,4 +63,9 @@ interface SailGate::Names<> is
         const Reset_Create := Types::Domain | "::Clock_Reset";
         const Clk_Rst_En_Create := Types::Domain | "::Clock_Reset_Enable";
     end interface Functions
+
+    interface PSL<> is
+        const Core_Prefix := "PSL::Core::";
+        const Bool := Core_Prefix | "Boolean";
+    end interface PSL
 end interface SailGate::Names

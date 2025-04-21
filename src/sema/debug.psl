@@ -99,26 +99,15 @@ exports
         const SI := Sema::Util::Get_Sem_Info(T);
         if SI not null then
             Ln |= "(SI : " | Id(Associated_Module(SI)) | ")";
+        end if
 
-            // const Actuals := Trees_Of_Actuals(SI);
-            // for I in 1..|Actuals| forward loop
-            //     Dump(Actuals[I]);
-            //     null;
-            // end loop
+        if Kind(T) == #binary then
+            Ln |= "(binary: " | To_String(Binary_Op(T)) | ")";
+        end if
 
-            // Println(To_String(Kind(Tree_Of(SI))));
-            // const SIT := Tree_Of(SI);
-            // for I in 1..Num_Operands(SIT) forward loop
-            //     Debug::Dump(Nth_Operand(SIT, I));
-            // end loop
-
-            // const SIR := Generic_Param_Region(Associated_Module(SI));
-            // if SIR not null then
-            //     Println("FOUND SIR");
-            //     for I in 1..Num_Trees(SIR) forward loop
-            //         Dump(Nth_Tree(SIR, I));
-            //     end loop
-            // end if
+        const OG_Binary := Original_Binary_Op(T);
+        if OG_Binary not null then
+            Ln |= "(og binary: " | To_String(OG_Binary) | ")";
         end if
 
         const Loc := Sema::Util::Find_Tree_Source(T);

@@ -1,0 +1,35 @@
+import PSC::Reflection::*;
+
+interface SailGate::Sema::Control_Flow_Desc<> is
+
+    /// Reads recursive if statement as a flat structure
+    interface If_Stmt_Desc<> is
+        interface Pair<> is
+            const Cond : Tree;
+            const Body : Tree;
+        end interface Pair
+
+        const If : Pair;
+        const Elifs : Vector<Pair>;
+        const Else : optional Tree;
+        const Is_Expr : Boolean;
+
+        func Read(T : Tree {Kind(T) == #conditional
+            and then (Conditional_Kind(T) == #if_expr or else
+            Conditional_Kind(T) == #if_stmt)}) -> If_Stmt_Desc;
+    end interface If_Stmt_Desc
+
+    interface Case_Desc<> is
+        interface Pair<> is
+            const Selector : Tree;
+            const Body : Tree;
+        end interface Pair
+
+        const Expr : Tree;
+        const Cases : Vector<Pair>;
+        const Default : optional Tree;
+
+        func Read(T : Tree {Kind(T) == #case_construct}) -> Case_Desc;
+    end interface Case_Desc
+
+end interface SailGate::Sema::Control_Flow_Desc

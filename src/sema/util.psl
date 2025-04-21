@@ -1,9 +1,5 @@
-import SailGate::Sema::Util::*;
 import SailGate::Util::*;
 import PSC::Reflection::*;
-import SailGate::IR;
-import SailGate::Prelude;
-import SailGate::Names;
 
 class SailGate::Sema::Util is
 exports
@@ -140,4 +136,19 @@ exports
             end if
         end if
     end func Get_Symbol
+
+    func Op_Param_Count(Op : Decl {Kind(Op) == #operation}) -> Univ_Integer is
+        const DR := Decl_Region(Op);
+        if DR is null then
+            return 0;
+        end if
+
+        return Num_Items(DR);
+    end func Op_Param_Count
+
+    func Resolved(T : Tree) -> Tree is
+        const RI := Resolved_Interp(T);
+        return (if RI not null then RI else T);
+    end func Resolved
+
 end class SailGate::Sema::Util

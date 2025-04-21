@@ -1,10 +1,7 @@
 import SailGate::Prelude::*, *;
 
-interface Counter_2Bit<D : Domain> is
-    //const D := Domain::Clock(#clk);
-
+interface Counter_2Bit<D : Domain {Clock(D)}> is
     const Value : Vec<2, D>;
-
     func Run() -> Counter_2Bit;
 end interface Counter_2Bit
 

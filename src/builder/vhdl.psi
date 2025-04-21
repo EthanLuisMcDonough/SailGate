@@ -362,7 +362,7 @@ interface SailGate::Builder::VHDL<> is
 
     /// Class for a process
     interface Process<> is
-        func Create(Name : Ident_String; SL : Vector<Identifier>
+        func Create(Name : optional Ident_String; SL : Vector<Identifier>
             {for all I in 1..|SL| => Readable(Access(SL[I]))};
             Body : Block {for all I in 1..|Body| =>
                 Sequential(Body[I])}) -> Process;

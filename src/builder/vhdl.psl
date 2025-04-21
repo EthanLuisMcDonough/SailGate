@@ -55,7 +55,7 @@ class SailGate::Builder::VHDL is
         return (case V of
             [#int] => "SIGNED";
             [#uint] => "UNSIGNED";
-            [#logic] => "STD_LOGIC_VEC");
+            [#logic] => "STD_LOGIC_VECTOR");
     end func Gen_Name
 
     /// Generates port definition
@@ -188,7 +188,11 @@ exports
         end op "from_univ"
 
         op "to_univ"(I : Ident_String) -> Univ_String is
-            return I.Value;
+            if I is null then
+                return "";
+            else
+                return I.Value;
+            end if
         end op "to_univ"
 
         op "=?"(L, R : Ident_String) -> Ordering is
@@ -934,11 +938,11 @@ exports
     end class Loop
 
     class Process is
-        const Name : Ident_String;
+        const Name : optional Ident_String;
         const SL : Vector<Identifier>;
         const Body : Block;
     exports
-        func Create(Name : Ident_String; SL : Vector<Identifier>;
+        func Create(Name : optional Ident_String; SL : Vector<Identifier>;
                     Body : Block) -> Process is
             return (Name => Name, SL => SL, Body => Body);
         end func Create
@@ -954,9 +958,14 @@ exports
             end loop
 
             const Name : Univ_String := P.Name;
-            return I | Name | ": process" | Paren(SL_Str) | Br | I | "begin" |
-                Br | Gen_Block(P.Body, Indent + 1) | Br | I | "end process "
-                | Name | ";";
+            const Name_Prefix : Univ_String := 
+                (if P.Name is null then
+                 "" else ([[P.Name]] | ": "));
+            const Name_Suffix := (if P.Name is null then
+                 "" else (" " | [[P.Name]]))
+            return I | Name_Prefix | "process" | Paren(SL_Str) | Br | I | "begin" |
+                Br | Gen_Block(P.Body, Indent + 1) | Br | I | "end process" |
+                Name_Suffix | ";";
         end func Gen_Proc
     end class Process
 

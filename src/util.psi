@@ -1,3 +1,4 @@
+/// Miscellaneous helper modules/functions used throughout the program
 interface SailGate::Util<> is
     func Starts_With(Str : Univ_String; Prefix : Univ_String) -> Boolean;
 
@@ -9,6 +10,10 @@ interface SailGate::Util<> is
     /// Strips quotes from a quoted string or character
     /// E.g. "\"test\"" -> "test" and "'c'" -> "c"
     func Strip_Quotes(S : Univ_String {|S| >= 2}) -> Univ_String;
+
+    /// Integer to bit string
+    func To_Binary_String(U : Univ_Integer;
+        Len : Univ_Integer := 1 {Len > 0}) -> Univ_String;
 
     type Either_Kind is Enum<[#left, #right]>;
     interface Either<L is Assignable<>; R is Assignable<>> is

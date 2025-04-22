@@ -8,7 +8,7 @@ import SailGate::Prelude;
 /// respective lowerer (just VHDL for now, but could include YOSYS
 /// and Verilog in the future) converts it into RTL code.
 interface SailGate::IR<> is
-    type Scalar_Type is Enum<[#logic, #bool]>;
+    type Scalar_Type is Enum<[#logic, #boolean]>;
     type Pos is optional Source_Position;
 
     interface Alignment<> is

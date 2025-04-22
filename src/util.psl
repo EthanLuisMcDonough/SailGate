@@ -155,4 +155,27 @@ exports
     func Strip_Quotes(S : Univ_String) -> Univ_String is
         return (if |S| == 2 then "" else S[2..(|S| - 1)]);
     end func Strip_Quotes
+
+    func To_Binary_String(U : Univ_Integer; Len : Univ_Integer) -> Univ_String is
+        // Truncates integer to have N bits
+        const Len_Mask : Unsigned_64 := 2 ** Len - 1;
+
+        // Counter + buffer
+        var Iteration := Len;
+        var Buf := "";
+
+        // Truncated integer value interpreted as bits
+        var Value : Unsigned_64 := U;
+        Value := Value and Len_Mask;
+
+        // Iterate through the bits. This runs at least N times so that
+        // we get zero padding
+        while Value > 0 or else Iteration > 0 loop
+            Buf := (if Value mod 2 == 0 then '0' else '1') | Buf;
+            Value /= 2;
+            Iteration -= 1;
+        end loop
+
+        return Buf;
+    end func To_Binary_String
 end class SailGate::Util

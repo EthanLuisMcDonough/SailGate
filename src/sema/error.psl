@@ -59,6 +59,7 @@ exports
             [#expected_switch] => Println("Expected call to \"Switch\" in switch-case value");
             [#item_after_return] => Println("Item found after return statement");
             [#invalid_return_value] => Println("Return value must be a class aggregate (e.g. (A => .., B => .., ..))")
+            [#duplicate_case] => Println("Duplicate found in case selector");
         end case
     end func Dump
 end class SailGate::Sema::Sema_Error

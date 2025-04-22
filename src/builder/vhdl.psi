@@ -139,6 +139,8 @@ interface SailGate::Builder::VHDL<> is
 
     /// Identifier referencing variable
     interface Identifier<> implements Expression<> is
+        const Name : Univ_String;
+
         func Create(Name : Ident_String; T : Type+;
             Access : Access_Kind) -> Identifier;
         func Gen_Expr(ref I : Identifier) -> Univ_String;

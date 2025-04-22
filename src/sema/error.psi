@@ -11,7 +11,7 @@ interface SailGate::Sema::Sema_Error<> is
         #invalid_literal, #literal_out_of_range, #invalid_concat,
         #invalid_binary, #invalid_slice_syntax, #index_out_of_range,
         #slice_bad_size, #mismatched_domain, #expected_switch,
-        #item_after_return, #invalid_return_value]>;
+        #item_after_return, #invalid_return_value, #duplicate_case]>;
 
     const Kind : Sema_Error_Kind;
     const Source : optional Reflection::Source_Position;

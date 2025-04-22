@@ -241,6 +241,7 @@ class SailGate::Sema::Validator is
         const Tree_Src := Util::Find_Tree_Source(T);
         const Case := Case_Desc::Read(T);
 
+        // Walk case expression
         const Case_Expr_Err := Reader::Walk_Case_Value(Ctx, Case.Expr);
         if Is_Err(Case_Expr_Err) then
             return Err(Case_Expr_Err);
@@ -250,6 +251,10 @@ class SailGate::Sema::Validator is
 
         var CB := Case_Builder::Create(Ctx, Case_Expr, Tree_Src);
 
+        // Set of binary strings to check for duplicates
+        var Selector_Set : Set<Univ_String> := []
+
+        // Read each case
         for I in 1..|Case.Cases| forward loop
             var Lits : IR::Literals := [];
             const Lit_Err := Reader::Walk_Case_Selector(
@@ -258,14 +263,31 @@ class SailGate::Sema::Validator is
                 return Lit_Err;
             end if
 
+            // Check for duplicate values in case
+            for J in 1..|Lits| forward loop
+                ref Lit => Lits[J];
+                const Str_Val : Univ_String := (case Lit.Value of
+                    [S : IR::Literal_Str] => S.Str;
+                    [C : IR::Literal_Char] => To_String(C);
+                    [N : IR::Literal_Num] =>
+                        To_Binary_String(N.Num, Size(Lit.Type)));
+
+                if Str_Val in Selector_Set then
+                    return (Kind => #duplicate_case, Source => Lit.Source);
+                end if
+                Selector_Set |= Str_Val;
+            end loop
+
             Add_Selector(CB, Lits);
 
+            // Walk case body
             const Case_Body_Err := Walk_Block_Tree(CB, Case.Cases[I].Body);
             if Case_Body_Err not null then
                 return Case_Body_Err;
             end if
         end loop
-        
+
+        // Walk default body
         if Case.Default not null then
             Add_Default(CB);
 

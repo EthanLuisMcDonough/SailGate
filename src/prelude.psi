@@ -1,8 +1,8 @@
 /// SailGate type library
 /// These are the types used by the end user to describe digital circuits
 interface SailGate::Prelude<> is
-    type Vec_Size is Integer<1..2**31-1>;
-    type Natural is Integer<0..2**31-1>;
+    type Vec_Size is Integer<1..2**32-1>;
+    type Natural is Integer<0..2**32-1>;
 
     type Domain_Kind is Enum<[#async, #clock, #clock_reset, #clock_reset_en]>;
     func Clock(D : Domain_Kind) -> Boolean;

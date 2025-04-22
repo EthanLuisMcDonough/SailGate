@@ -342,7 +342,6 @@ exports
     end class Literal
 
     class Identifier is
-        const Name : Univ_String;
         const Access : Access_Kind
         var T : Type+;
     exports

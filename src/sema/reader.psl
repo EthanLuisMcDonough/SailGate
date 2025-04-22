@@ -725,7 +725,7 @@ exports
             [Names::Types::Logic] =>
                 Scalar_Type := #logic;
             [Names::Types::Bool] =>
-                Scalar_Type := #bool;
+                Scalar_Type := #boolean;
         end case
 
         if Scalar_Type not null then

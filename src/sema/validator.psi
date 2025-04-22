@@ -4,7 +4,7 @@ import PSC::Reflection;
 
 /// Takes ParaSail AST and transforms it into validated SailGate IR
 interface SailGate::Sema::Validator<> is
-    type Entity_Map is Map<Univ_String, Entity>;
+    type Entity_Map is Ordered_Map<Univ_String, Entity>;
     var Entities : Entity_Map;
 
     func Create() -> Validator;

@@ -1,0 +1,14 @@
+import SailGate::IR;
+import SailGate::Sema::Validator;
+import SailGate::Builder::VHDL;
+
+/// Translates SailGate IR into VHDL
+interface SailGate::Lowering::VHDL_Lowering<> is
+
+    /// Convert IR type to VHDL type
+    func Lower(Type : IR::Type) -> VHDL::Type+;
+
+    /// Convert entity map to system
+    func Lower(S : Validator::Entity_Map) -> VHDL::Design;
+
+end interface SailGate::Lowering::VHDL_Lowering

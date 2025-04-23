@@ -178,4 +178,29 @@ exports
 
         return Buf;
     end func To_Binary_String
+
+    func From_Unsigned_String(S : Univ_String) -> Unsigned_64 is
+        var U : Unsigned_64 := 0;
+        for I in 1..|S| forward loop
+            {S[I] == '0' or else S[I] == '1'}
+            U *= 2;
+            case S[I] of
+                ['0'] => null;
+                ['1'] => U += 1;
+            end case
+        end loop
+        return U;
+    end func From_Unsigned_String
+
+    func From_Signed_String(S : Univ_String) -> Univ_Integer is
+        const Sign := (if S[1] == '1' then -1 else 1);
+
+        // Find 2s complement
+        var Num := From_Unsigned_String(S[2..|S|]);
+        if S[1] == '1' then
+            Num := ((not Num) + 1) and (2 ** (|S| - 1) - 1);
+        end if
+
+        return [[Num]] * Sign;
+    end func From_Signed_String
 end class SailGate::Util

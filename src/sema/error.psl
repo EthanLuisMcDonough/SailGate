@@ -60,6 +60,10 @@ exports
             [#item_after_return] => Println("Item found after return statement");
             [#invalid_return_value] => Println("Return value must be a class aggregate (e.g. (A => .., B => .., ..))")
             [#duplicate_case] => Println("Duplicate found in case selector");
+            [#literal_conversion] => Println("Can't use conversion function on literal value");
+            [#negative_shift] => Println("Shift value can't be negative");
+            [#no_inputs] => Println("No inputs found in entity");
+            [#no_outputs] => Println("No outputs found in entity");
         end case
     end func Dump
 end class SailGate::Sema::Sema_Error

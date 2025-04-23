@@ -1,0 +1,581 @@
+import SailGate::IR;
+import SailGate::Prelude;
+import SailGate::Sema::Validator;
+import SailGate::Builder::VHDL;
+import SailGate::Util::To_Binary_String;
+import SailGate::Util::From_Unsigned_String;
+import SailGate::Util::From_Signed_String;
+
+class SailGate::Lowering::VHDL_Lowering is
+
+    /// Visitor type for analyzing variables that are visited
+    abstract interface Visitor<> is
+        func Visit(var V : Visitor; I : VHDL::Identifier);
+    end interface Visitor
+
+    /// Builds up sensitivity list
+    interface Async_Visitor<> implements Visitor<> is
+        var List : Vector<VHDL::Identifier>;
+
+        func Visit(var V : Async_Visitor; I : VHDL::Identifier);
+        func Create() -> Async_Visitor;
+    end interface Async_Visitor
+
+    class Async_Visitor<> is
+        var Visited : Set<Univ_String>;
+    exports
+        func Create() -> Async_Visitor is
+            return (Visited => [], List => []);
+        end func Create
+
+        func Visit(var V : Async_Visitor; I : VHDL::Identifier) is
+            if I.Name not in V.Visited then
+                V.Visited |= I.Name;
+                V.List |= I;
+            end if
+        end func Visit
+    end class Async_Visitor
+
+    /// Do-nothing visitor
+    interface Visitor_Proxy<> implements Visitor<> is
+        func Visit(var V : Visitor_Proxy; I : VHDL::Identifier);// is (null);
+        func Create() -> Visitor_Proxy;
+    end interface Visitor_Proxy
+
+    class Visitor_Proxy is
+    exports
+        func Create() -> Visitor_Proxy is
+            return ();
+        end func Create
+
+        func Visit(var V : Visitor_Proxy; I : VHDL::Identifier) is
+            null;
+        end func Visit
+    end class Visitor_Proxy
+
+    /// Helper struct for creating IDs for signals associated with
+    /// unnamed constructs
+    interface Anon_Sig<> is
+        func Create() -> Anon_Sig;
+        func New_Id(var C : Anon_Sig) -> Univ_Integer;
+    end interface Anon_Sig
+
+    class Anon_Sig is
+        var Id : Univ_Integer;
+    exports
+        func Create() -> Anon_Sig is
+            return (Id => 0);
+        end func Create
+
+        func New_Id(var C : Anon_Sig) -> Univ_Integer is
+            const Old := C.Id;
+            C.Id += 1;
+            return Old;
+        end func New_Id
+    end class Anon_Sig
+
+    func Lower(Scalar : IR::Scalar_Type) -> VHDL::Scalar_Type is
+        return VHDL::Scalar_Type::Create([[Scalar]]);
+    end func Lower
+
+    func Get_Vec_Range(Vec : IR::Vec_Type) -> VHDL::Vec_Range is
+        // Treat down as default for now
+        var Dir : VHDL::Vec_Dir := #down;
+        if Vec.Align.Dir == #up then
+            Dir := #up;
+        end if
+        return VHDL::Vec_Range::Create(Vec.Size, Vec.Align.Offset, Dir);
+    end func Get_Vec_Range
+
+    func Lower(Vec : IR::Vec_Type) -> VHDL::Vector_Type is
+        const Range := Get_Vec_Range(Vec);
+        return VHDL::Vector_Type::Create([[Vec.Kind]], Range);
+    end func Lower
+
+    func Lower_Int(L : Univ_Integer; Type : VHDL::Type+) -> VHDL::Literal is
+        case Type of
+            [V : VHDL::Vector_Type] =>
+                return VHDL::Literal::Int(L, V);
+            [..] =>
+                {#false}
+        end case
+    end func Lower_Int
+
+    /// Lower literals in cases where the literal has to be a string
+    /// e.g. registers and case selectors
+    func Lower_Str_Rep(Lit : IR::Literal) -> VHDL::Literal is
+        const Type := Lower(Lit.Type);
+        case Lit.Value of
+            [S : IR::Literal_Str] =>
+                return VHDL::Literal::Vec(S.Str, Type_Id(Type));
+            [C : IR::Literal_Char] =>
+                return VHDL::Literal::Logic(C.Ch);
+            [N : IR::Literal_Num] =>
+                const Bin_Str := To_Binary_String(N.Num, Size(Lit.Type));
+                return VHDL::Literal::Vec(Bin_Str, Type_Id(Type));
+            [..] =>
+                {#false}
+        end case
+    end func Lower_Str_Rep
+
+    /// Lower literals in cases where the literal has to be an integer
+    /// e.g. right shift argument
+    func Lower_Int_Rep(Lit : IR::Literal) -> VHDL::Literal is
+        const Type := Lower(Lit.Type);
+        case Lit.Value of
+            [S : IR::Literal_Str] =>
+                const Int_Val := (if Type_Id(Type) == #int then
+                    From_Signed_String(S.Str) else From_Unsigned_String(S.Str));
+                return Lower_Int(Int_Val, Type);
+            [C : IR::Literal_Char] =>
+                return VHDL::Literal::Logic(C.Ch);
+            [N : IR::Literal_Num] =>
+                return Lower_Int(N.Num, Type);
+            [..] =>
+                {#false}
+        end case
+    end func Lower_Int_Rep
+
+    func Lower_Lit(Lit : IR::Literal) -> VHDL::Literal is
+        if Lit.Type.Kind == #vec and then Get_Vec(Lit.Type).Kind == #logic then
+            return Lower_Str_Rep(Lit);
+        end if
+
+        const Type := Lower(Lit.Type);
+        case Lit.Value of
+            [S : IR::Literal_Str] =>
+                return VHDL::Literal::Vec(S.Str, Type_Id(Type));
+            [C : IR::Literal_Char] =>
+                return VHDL::Literal::Logic(C.Ch);
+            [N : IR::Literal_Num] =>
+                return Lower_Int(N.Num, Type);
+            [..] =>
+                {#false}
+        end case
+    end func Lower_Lit
+
+    interface Convert_Name<> is
+        func Input(S : Univ_String) -> Univ_String is ("i_" | S);
+        func Output(S : Univ_String) -> Univ_String is ("o_" | S);
+        func Register(S : Univ_String) -> Univ_String is ("reg_" | S);
+        func Wire(S : Univ_String) -> Univ_String is ("w_" | S);
+        func Internal(Id : Univ_Integer) -> Univ_String is ("internal_" | Id);
+        func Inst_Access(I : IR::Inst_Access) -> Univ_String
+            is (I.Name | "." | I.Property);
+        func Entity(E : Univ_String) -> Univ_String
+            is ("entity_" | Replace(E, ':', '_'));
+    end interface Convert_Name
+
+    interface Domain_Name<> is
+        func Clock(D : IR::Domain {Prelude::Clock(D.Kind)}) -> Univ_String
+            is ("dom_" | D.Name | "_clk");
+        func Reset(D : IR::Domain {Prelude::Reset(D.Kind)}) -> Univ_String
+            is ("dom_" | D.Name | "_reset");
+        func Enable(D : IR::Domain {Prelude::Clk_Rst_En(D.Kind)}) -> Univ_String
+            is ("dom_" | D.Name | "_en");
+    end interface Domain_Name
+
+    type Scope is Ordered_Map<Univ_String, VHDL::Identifier>;
+    type Port_Scope is Ordered_Map<Univ_String, VHDL::Port>;
+
+    func Lower_Ident(I : IR::Identifier; S : Scope; var V : Visitor+) -> VHDL::Identifier is
+        const Vhdl_Var := S[I.Name];
+        Visit(V, Vhdl_Var);
+        return Vhdl_Var;
+    end func Lower_Ident
+
+    func Lower_Inst_Access(I : IR::Inst_Access; S : Scope; var V : Visitor+) -> VHDL::Identifier is
+        const Vhdl_Var := S[Convert_Name::Inst_Access(I)];
+        Visit(V, Vhdl_Var);
+        return Vhdl_Var;
+    end func Lower_Inst_Access
+
+    func Lower_Binary(B : IR::Binary; S : Scope; var V : Visitor+) -> VHDL::Expression+ is
+        case B.Op of
+            [#left_shift_op | #right_shift_op] =>
+                var Left : VHDL::Expression+;
+                const Dir : Univ_Enumeration := [[B.Op]];
+                case B.Left of
+                    [L : IR::Literal] =>
+                        Left := Lower_Str_Rep(L);
+                    [..] =>
+                        Left := Lower(B.Left, S, V);
+                end case
+                case B.Right of
+                    [L : IR::Literal] =>
+                        return VHDL::Const_Shift::Create(Dir, Left, Int_Val(L));
+                    [..] =>
+                        return VHDL::Shift::Create(Dir, Left, Lower(B.Right, S, V));
+                end case
+            [#combine_op] =>
+                const Left := Lower(B.Left, S, V);
+                const Right := Lower(B.Right, S, V);
+                return VHDL::Concat::Create(Left, Right);
+            [..] =>
+                var Bin_Op : VHDL::Binary_Op := #and;
+                case B.Op of
+                    [#plus_op] => Bin_Op := #add;
+                    [#minus_op] => Bin_Op := #sub;
+                    [#times_op] => Bin_Op := #mult;
+                    [#divide_op] => Bin_Op := #div;
+                    [#and_op] => Bin_Op := #and;
+                    [#or_op] => Bin_Op := #or;
+                    [#xor_op] => Bin_Op := #xor;
+                    [#less_op] => Bin_Op := #lt;
+                    [#leq_op] => Bin_Op := #lte;
+                    [#leq_op] => Bin_Op := #lte;
+                    [#equal_op] => Bin_Op := #eq;
+                    [#neq_op] => Bin_Op := #neq;
+                    [#geq_op] => Bin_Op := #gte;
+                    [#greater_op] => Bin_Op := #gt;
+                    [..] => {#false}
+                end case
+                const Left := Lower(B.Left, S, V);
+                const Right := Lower(B.Right, S, V);
+                return VHDL::Binary::Create(Bin_Op, Left, Right);
+        end case
+    end func Lower_Binary
+
+    func Lower_Unary(U : IR::Unary; S : Scope; var V : Visitor+) -> VHDL::Unary is
+        const Un_Op : VHDL::Unary_Op := (case U.Op of
+            [#not_op] => #not;
+            [#minus_op] => #negation);
+        return VHDL::Unary::Create(Un_Op, Lower(U.Value, S, V));
+    end func Lower_Unary
+
+    func Lower_Conversion(C : IR::Conversion; S : Scope; var V : Visitor+) -> VHDL::Expression+ is
+        const Inner := Lower(C.Converted, S, V);
+        case C.Op of
+            // We don't care about clock domains anymore
+            [#sync | #unsafe_cast] =>
+                return Inner;
+            [..] =>
+                const Kind : VHDL::Vec_Type_Kind := (case C.Op of
+                    [#to_uint] => #uint;
+                    [#to_int] => #int;
+                    [#to_vec] => #logic);
+                return VHDL::Vec_Conversion::Create(Inner, Kind);
+        end case
+    end func Lower_Conversion
+
+    func Lower_Index(I : IR::Index; S : Scope; var V : Visitor+) -> VHDL::Index_Access is
+        const Inner := Lower(I.Value, S, V);
+        const Inner_Range := Range(Get_Type(Inner));
+        {Inner_Range not null}
+        return VHDL::Index_Access::Create(Inner, I.Index + Get_Min(Inner_Range));
+    end func Lower_Index
+
+    func Lower_Slice(R : IR::Slice; S : Scope; var V : Visitor+) -> VHDL::Slice_Access is
+        const Inner := Lower(R.Value, S, V);
+        const Inner_Range := Range(Get_Type(Inner));
+        {Inner_Range not null}
+        const Start := R.Start + Get_Min(Inner_Range);
+        const End := R.End + Get_Min(Inner_Range);
+        return VHDL::Slice_Access::Create(Inner, Start..End);
+    end func Lower_Slice
+
+    func Lower(E : IR::Expression+; S : Scope; var V : Visitor+) -> VHDL::Expression+ is
+        case E of
+            [I : IR::Identifier] => return Lower_Ident(I, S, V);
+            [I : IR::Inst_Access] => return Lower_Inst_Access(I, S, V);
+            [L : IR::Literal] => return Lower_Lit(L);
+            [B : IR::Binary] => return Lower_Binary(B, S, V);
+            [U : IR::Unary] => return Lower_Unary(U, S, V);
+            [C : IR::Conversion] => return Lower_Conversion(C, S, V);
+            [I : IR::Index] => return Lower_Index(I, S, V);
+            [R : IR::Slice] => return Lower_Slice(R, S, V);
+            [..] => {*"Unhandled expression type"* #false}
+        end case
+    end func Lower
+
+    func Lower_Assignment(A : IR::Assignment; S : Scope; var V : Visitor+)
+        -> VHDL::Assignment
+    is
+        var Empty_Visitor := Visitor_Proxy::Create();
+        var Assignee := Lower(A.Asignee, S, Empty_Visitor);
+        var Value := Lower(A.Value, S, V);
+        return VHDL::Assignment::Create(Assignee, Value);
+    end func Lower_Assignment
+
+    func Lower_If(I : IR::If_Chain; S : Scope; var V : Visitor+;
+        var Regs : Vector<VHDL::Register>; var AS : Anon_Sig;
+        var Block : VHDL::Block)
+    is
+        const Main_Cond := Lower(I.Base.Condition, S, V);
+        const Main_Body := Lower_New_Body(I.Base.Body, S, V, Regs, AS);
+        const Main := VHDL::Condition_Body::Create(Main_Cond, Main_Body);
+
+        var Elifs : Vector<VHDL::Condition_Body> := [];
+        for J in 1..|I.Elifs| forward loop
+            const Cond := Lower(I.Elifs[J].Condition, S, V);
+            const Body := Lower_New_Body(I.Elifs[J].Body, S, V, Regs, AS);
+            Elifs |= VHDL::Condition_Body::Create(Cond, Body);
+        end loop
+
+        var Else : optional VHDL::Block := null;
+        if I.Else not null then
+            Else := Lower_New_Body(I.Else, S, V, Regs, AS);
+        end if
+
+        Block |= VHDL::If_Chain::Create(Main, Elifs, Else);
+    end func Lower_If
+
+    /// Lowering for switch/case
+    func Lower_Case(C : IR::Switch_Case; S : Scope; var V : Visitor+;
+        var Regs : Vector<VHDL::Register>; var AS : Anon_Sig;
+        var Block : VHDL::Block)
+    is
+        // Create a signal for the case expression
+        const CS_Id := New_Id(AS);
+        const Case_Expr := Lower(C.Expr, S, V);
+        const Case_Signal := VHDL::Register::Create(
+            Convert_Name::Internal(CS_Id), Get_Type(Case_Expr));
+        Regs |= Case_Signal;
+        Block |= VHDL::Assignment::Create(Ref(Case_Signal), Case_Expr);
+
+        // Construct cases
+        var Cases : Vector<VHDL::Case> := [];
+        for I in 1..|C.Cases| forward loop
+            ref Case => C.Cases[I];
+            var Case_Lits : Vector<VHDL::Literal> := [];
+            for J in 1..|Case.Values| forward loop
+                Case_Lits |= Lower_Str_Rep(Case.Values[J]);
+            end loop
+            var Body := Lower_New_Body(Case.Body, S, V, Regs, AS);
+            Cases |= VHDL::Case::Create(Case_Lits, Body);
+        end loop
+
+        var Default : VHDL::Block := [];
+        if C.Default not null then
+            Default := Lower_New_Body(C.Default, S, V, Regs, AS);
+        end if
+
+        Block |= VHDL::Switch::Create(Ref(Case_Signal), Cases, Default);
+    end func Lower_Case
+
+    func Lower_New_Body(B : IR::Block; S : Scope; var V : Visitor+;
+        var Regs : Vector<VHDL::Register>; var AS : Anon_Sig) -> VHDL::Block
+    is
+        var Body : VHDL::Block := [];
+        Lower_Body(B, S, V, Regs, AS, Body);
+        return Body;
+    end func Lower_New_Body
+
+    func Lower_Body(B : IR::Block; S : Scope; var V : Visitor+;
+        var Regs : Vector<VHDL::Register>; var AS : Anon_Sig;
+        var Body : VHDL::Block)
+    is
+        for I in 1..|B| forward loop
+            case B[I] of
+                [A : IR::Assignment] =>
+                    Body |= Lower_Assignment(A, S, V);
+                [C : IR::If_Chain] =>
+                    Lower_If(C, S, V, Regs, AS, Body);
+                [C : IR::Switch_Case] =>
+                    Lower_Case(C, S, V, Regs, AS, Body);
+            end case
+        end loop
+    end func Lower_Body
+
+    /// Creates a clock bound process with the given block
+    func Clock_Proc(Name : Univ_String; Clk : VHDL::Port; B : VHDL::Block)
+        -> VHDL::Process
+    is
+        const Edge_Check_Pair := VHDL::Condition_Body::Create(
+            VHDL::Edge_Check::Create(Clk), B);
+        const Edge_If := VHDL::If_Chain::Create(Edge_Check_Pair);
+        return VHDL::Process::Create(Name => Name,
+            SL => [Ref(Clk)], Body => [Edge_If]);
+    end func Clock_Proc
+
+    /// Generates a block of code that resets all registers tied to the specified domain
+    func Gen_Reset_Block(E : IR::Entity; D : IR::Domain; S : Scope) -> VHDL::Block is
+        var RB : VHDL::Block := [];
+        for each [Name => Reg] of E.Registers {Reg.Type.Dom == D} forward loop
+            if Reg.Init not null then
+                const Reg_Var := S[Name];
+                RB |= VHDL::Assignment::Create(Reg_Var, Lower_Str_Rep(Reg.Init));
+            end if
+        end loop
+        return RB;
+    end func Gen_Reset_Block
+
+    ///
+    func Gen_Reset_Cond(E : IR::Entity; Rst : VHDL::Port; D : IR::Domain;
+        S : Scope) -> VHDL::Condition_Body
+    is
+        const Reg_Reset := Gen_Reset_Block(E, D, S);
+        const Reg_Check := VHDL::Binary::Create(#eq,
+            Ref(Rst), VHDL::Literal::Logic('1'));
+        return VHDL::Condition_Body::Create(Reg_Check, Reg_Reset);
+    end func Gen_Reset_Cond
+    
+
+    func Lower(S : Validator::Entity_Map; E : IR::Entity) -> VHDL::Entity is
+        var Entity_Scope : Scope := [];
+        var Ports : Vector<VHDL::Port> := [];
+        var Clock_Ports : Port_Scope := [];
+        var Outputs : Port_Scope := [];
+        var Registers : Vector<VHDL::Register> := [];
+        var Async_Region : VHDL::Block := [];
+        var Processes : Vector<VHDL::Process> := [];
+
+        // Add clock domain inputs
+        for each [Name => Dom] of E.Domains forward loop
+            if Prelude::Clock(Dom.Kind) then
+                const Port := VHDL::Port::In(
+                    Domain_Name::Clock(Dom),
+                    VHDL::Logic_Type);
+                Ports |= Port;
+                Clock_Ports |= (Value => Port,
+                    Key => Domain_Name::Clock(Dom));
+            end if
+
+            if Prelude::Reset(Dom.Kind) then
+                const Port := VHDL::Port::In(
+                    Domain_Name::Reset(Dom),
+                    VHDL::Logic_Type);
+                Ports |= Port;
+                Clock_Ports |= (Value => Port,
+                    Key => Domain_Name::Reset(Dom));
+            end if
+
+            if Prelude::Clk_Rst_En(Dom.Kind) then
+                const Port := VHDL::Port::In(
+                    Domain_Name::Enable(Dom),
+                    VHDL::Logic_Type);
+                Ports |= Port;
+                Clock_Ports |= (Value => Port,
+                    Key => Domain_Name::Enable(Dom));
+            end if
+        end loop
+
+        // Lower in ports
+        for each [Name => Type] of E.Inputs forward loop
+            const Port_Name := Convert_Name::Input(Name);
+            const Port_Type := Lower(Type);
+            const In_Port := VHDL::Port::In(Port_Name, Port_Type);
+            Entity_Scope |= (Key => Name, Value => Ref(In_Port));
+            Ports |= In_Port;
+        end loop
+
+        // Lower out ports
+        for each [Name => Type] of E.Outputs forward loop
+            const Port_Name := Convert_Name::Output(Name);
+            const Port_Type := Lower(Type);
+            const Out_Port := VHDL::Port::Out(Port_Name, Port_Type);
+            Outputs |= (Key => Name, Value => Out_Port);
+            Ports |= Out_Port;
+        end loop
+
+        // Add registers
+        for each [Name => Reg] of E.Registers forward loop
+            const Reg_Name := Convert_Name::Register(Name);
+            const Reg_Type := Lower(Reg.Type);
+            var Reg_Init : optional VHDL::Literal := null;
+            if Reg.Init not null then
+                Reg_Init := Lower_Str_Rep(Reg.Init);
+            end if
+            const Register := VHDL::Register::Create(Reg_Name, Reg_Type, Reg_Init);
+            Entity_Scope |= (Key => Name, Value => Ref(Register));
+            Registers |= Register;
+        end loop
+
+        var Empty_Visitor := Visitor_Proxy::Create();
+        var AS := Anon_Sig::Create();
+
+        // Add signals for concurrent defs
+        for I in 1..|E.Concurrent| forward loop
+            case E.Concurrent[I] of
+                [W : IR::Wire] =>
+                    const Wire_Name := Convert_Name::Wire(W.Name);
+                    const Wire_Type := Lower(W.Type);
+                    const Wire := VHDL::Register::Create(Wire_Name, Wire_Type);
+                    // Add wire to scope
+                    Entity_Scope |= (Key => W.Name, Value => Ref(Wire));
+                    Registers |= Wire;
+                    // Process wire def
+                    const Wire_Val := Lower(W.Value, Entity_Scope, Empty_Visitor);
+                    Async_Region |= VHDL::Assignment::Create(Ref(Wire), Wire_Val)
+                [..] =>
+                    {*"NYI: entity instance lowering"* #false}
+            end case
+        end loop
+
+        // Generate implicit processes
+        for each [Name => Proc] of E.Impl forward loop
+            case Proc.Dom.Kind of
+                [#async] =>
+                    var SL := Async_Visitor::Create();
+                    const Async_Body := Lower_New_Body(Proc.Body, Entity_Scope,
+                        SL, Registers, AS);
+                    const Async_Proc := VHDL::Process::Create(
+                        Name => "implicit_async_" | Name,
+                        SL => SL.List, Body => Async_Body);
+                    Processes |= Async_Proc;
+                [#clock] =>
+                    const Clk_Body := Lower_New_Body(Proc.Body,
+                        Entity_Scope, Empty_Visitor, Registers, AS);
+                    const Clock_Port := Clock_Ports[Domain_Name::Clock(Proc.Dom)];
+                    const Clk_Proc := Clock_Proc("implicit_clock_" | Name,
+                        Clock_Port, Clk_Body);
+                    Processes |= Clk_Proc;
+                [#clock_reset] =>
+                    const Rst_Body := Lower_New_Body(Proc.Body,
+                        Entity_Scope, Empty_Visitor, Registers, AS);
+                    const Clock_Port := Clock_Ports[Domain_Name::Clock(Proc.Dom)];
+                    const Reset_Port := Clock_Ports[Domain_Name::Reset(Proc.Dom)];
+                    const Reset_If := Gen_Reset_Cond(E, Reset_Port, Proc.Dom, Entity_Scope);
+                    const Reset_Proc := Clock_Proc("implicit_reset_" | Name,
+                        Clock_Port, [VHDL::If_Chain::Create(Reset_If, Else => Rst_Body)]);
+                    Processes |= Reset_Proc;
+                [#clock_reset_en] =>
+                    const En_Body := Lower_New_Body(Proc.Body,
+                        Entity_Scope, Empty_Visitor, Registers, AS);
+                    const Clock_Port := Clock_Ports[Domain_Name::Clock(Proc.Dom)];
+                    const Reset_Port := Clock_Ports[Domain_Name::Reset(Proc.Dom)];
+                    const Enable_Port := Clock_Ports[Domain_Name::Enable(Proc.Dom)];
+                    const Reset_If := Gen_Reset_Cond(E, Reset_Port, Proc.Dom, Entity_Scope);
+                    const Enable_Check := VHDL::Binary::Create(#eq,
+                        Ref(Enable_Port), VHDL::Literal::Logic('1'));
+                    const Reg_Reset := Gen_Reset_Block(E, Proc.Dom, Entity_Scope);
+                    const Enable_If := VHDL::Condition_Body::Create(Enable_Check, En_Body);
+                    const En_Proc := Clock_Proc("implicit_enable_" | Name,
+                        Clock_Port, [VHDL::If_Chain::Create(Reset_If, Elifs => [Enable_If])]);
+                    Processes |= En_Proc;
+            end case
+        end loop
+
+        // Drive output values
+        for each [Name => Value] of E.Output_Values forward loop
+            {Name in Outputs}
+            const Port := Outputs[Name];
+            const Out_Val := Lower(Value, Entity_Scope, Empty_Visitor);
+            Async_Region |= VHDL::Assignment::Create(Ref(Port), Out_Val);
+        end loop
+
+        const Entity := VHDL::Entity::Create(
+            Name => Convert_Name::Entity(E.Name),
+            Ports => Ports, Registers => Registers,
+            Components => [], Async_Region => Async_Region,
+            Processes => Processes);
+        Println(Gen_Entity(Entity));
+
+        return Entity;
+    end func Lower
+exports
+    func Lower(Type : IR::Type) -> VHDL::Type+ is
+        case Type.Kind of
+            [#scalar] => return Lower(Get_Scalar(Type));
+            [#vec] => return Lower(Get_Vec(Type));
+        end case
+    end func Lower
+
+    func Lower(S : Validator::Entity_Map) -> VHDL::Design is
+        var Entities : Vector<VHDL::Entity> := [];
+        for each [Name => Entity] of S forward loop
+            Entities |= Lower(S, Entity);
+        end loop
+        return VHDL::Design::Create(Entities);
+    end func Lower
+end class SailGate::Lowering::VHDL_Lowering

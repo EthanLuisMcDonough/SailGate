@@ -80,7 +80,8 @@ class SailGate::Sema::Validator is
         end if
         const Obj_Val_Expr := Ok(Obj_Val_Res);
 
-        const Wire : IR::Wire := (Name => Id(Wire_Decl), Type => Type,
+        const Wire : IR::Wire := (Name => Id(Wire_Decl),
+            Type => Type, Value => Obj_Val_Expr,
             Source => Util::Find_Tree_Source(T));
         return Add_Wire(B, Wire);
     end func Walk_Wire
@@ -545,6 +546,14 @@ class SailGate::Sema::Validator is
                 return Output_Err;
             end if
         end loop
+
+        if |Builder.Inputs| + Count_Seq_Domains(Builder) == 0 then
+            return (Kind => #no_inputs, Source => Decl_Src);
+        end if
+
+        if |Builder.Outputs| == 0 then
+            return (Kind => #no_outputs, Source => Decl_Src);
+        end if
 
         V.Pending_Entities |= (Key => Builder.Name,
             Value => (Builder => Builder, Run => Run_Op));

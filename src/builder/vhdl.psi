@@ -24,11 +24,10 @@ interface SailGate::Builder::VHDL<> is
 
     /// VHDL operands
     type Binary_Op is Enum<[#add, #sub, #mult, #div,
-        #and, #or, #xor, #mod, #eq, #neq, #lt, #gt,
+        #and, #or, #xor, #eq, #neq, #lt, #gt,
         #lte, #gte]>;
-    type Unary_Op is Enum<[#not, #negation, #logic_not]>;
-    type Special_Op is Enum<[#index, #slice, #arith_shift,
-                             #logic_shift, #concat]>;
+    type Unary_Op is Enum<[#not, #negation]>;
+    type Special_Op is Enum<[#index, #slice, #shift, #concat]>;
 
     /// Type enums. The actual type classes can have more
     /// metadata
@@ -59,6 +58,7 @@ interface SailGate::Builder::VHDL<> is
 
         func Get_Nth(V : Vec_Range; I : Index {[[I]] < Get_Size(V)}) -> Index;
         func Gen_Range(V : Vec_Range) -> Univ_String;
+        func Size(V : Vec_Range) -> Univ_Integer is (Get_Max(V) - Get_Min(V));
     end interface Vec_Range
 
     /// Base class for VHDL types
@@ -135,6 +135,7 @@ interface SailGate::Builder::VHDL<> is
         func Bool(B : Boolean) -> Literal;
         func Logic(L : Univ_Character {L in '0'..'1'}) -> Literal;
         func Vec(S : Bit_String; Kind : Vec_Type_Kind) -> Literal;
+        func Int(S : Univ_Integer; Kind : Vector_Type) -> Literal;
     end interface Literal
 
     /// Identifier referencing variable
@@ -207,6 +208,28 @@ interface SailGate::Builder::VHDL<> is
         func Access(ref B : Binary) -> Access_Kind;
         func Is_Static(ref B : Binary) -> Boolean;
     end interface Binary
+
+    type Shift_Direction is Enum<[#left_shift_op, #right_shift_op]>;
+    interface Shift<> implements Expression is
+        func Create(Dir : Shift_Direction; L : Expression+
+            {Readable(L) and then Supports_Special(Get_Type(L), #shift)};
+            R : Expression+ {Readable(R) and then
+            Get_Type(R) == Get_Type(L)}) -> Shift;
+        func Gen_Expr(ref S : Shift) -> Univ_String;
+        func Get_Type(ref S : Shift) -> Type+;
+        func Access(ref S : Shift) -> Access_Kind;
+        func Is_Static(ref S : Shift) -> Boolean;
+    end interface Shift
+
+    interface Const_Shift<> implements Expression is
+        func Create(Dir : Shift_Direction; L : Expression+
+            {Readable(L) and then Supports_Special(Get_Type(L), #shift)};
+            R : Univ_Integer {R >= 0}) -> Const_Shift;
+        func Gen_Expr(ref C : Const_Shift) -> Univ_String;
+        func Get_Type(ref C : Const_Shift) -> Type+;
+        func Access(ref C : Const_Shift) -> Access_Kind;
+        func Is_Static(ref C : Const_Shift) -> Boolean;
+    end interface Const_Shift
 
     /// Vector type conversion
     interface Vec_Conversion<> implements Expression<> is

@@ -175,7 +175,7 @@ exports
             end op "from_univ"
 
             op "=?"(L, R : IVec) -> Ordering is
-                {#false}
+                return L.Val =? R.Val;
             end op "=?"
         end class IVec
 
@@ -354,11 +354,11 @@ exports
         end op "|"
 
         func Unsafe_Cast(V : Vec) -> Vec<Size, Async> is
-            {#false}
+            {*"Compile-time conversion not allowed"* #false}
         end func Unsafe_Cast
 
         func Sync(V : Vec<Size, Async>) -> Vec is
-            {#false}
+            {*"Compile-time conversion not allowed"* #false}
         end func Sync
 
         func Switch(V : Vec) -> Switch_Values::Vec<Size> is
@@ -366,11 +366,11 @@ exports
         end func Switch
 
         func To_IVec(V : Vec) -> IVec<Size, Dom> is
-            {#false}
+            {*"Compile-time conversion not allowed"* #false}
         end func To_IVec
 
         func To_UVec(V : Vec) -> UVec<Size, Dom> is
-            {#false}
+            {*"Compile-time conversion not allowed"* #false}
         end func To_UVec
     end class Vec
 
@@ -467,7 +467,7 @@ exports
         end func Switch
 
         func Logic_Vec(V : IVec) -> Vec<Size, Dom> is
-            return (Internal_Ref => '0');
+            {*"Compile-time conversion not allowed"* #false}
         end func Logic_Vec
     end class IVec
 
@@ -548,11 +548,11 @@ exports
         end op "|"
 
         func Unsafe_Cast(V : UVec) -> UVec<Size, Async> is
-            {#false}
+            {*"Compile-time conversion not allowed"* #false}
         end func Unsafe_Cast
 
         func Sync(V : UVec<Size, Async>) -> UVec is
-            {#false}
+            {*"Compile-time conversion not allowed"* #false}
         end func Sync
 
         func Switch(V : UVec) -> Switch_Values::UVec<Size> is
@@ -560,7 +560,7 @@ exports
         end func Switch
 
         func Logic_Vec(V : UVec) -> Vec<Size, Dom> is
-            return (Internal_Ref => '0');
+            {*"Compile-time conversion not allowed"* #false}
         end func Logic_Vec
     end class UVec
 

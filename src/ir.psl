@@ -1,4 +1,6 @@
-import SailGate::Sema::Util;
+import SailGate::Util::From_Unsigned_String;
+import SailGate::Util::From_Signed_String;
+import SailGate::Sema::Util::Get_Decl_Name;
 import SailGate::Names;
 
 class SailGate::IR is
@@ -29,7 +31,7 @@ exports
         end func Module
 
         func Full_Name(D : Domain) -> Univ_String is
-            return Util::Get_Decl_Name(D.Decl);
+            return Get_Decl_Name(D.Decl);
         end func Full_Name
 
         func To_String(D : Domain) -> Univ_String is
@@ -110,4 +112,29 @@ exports
             end case
         end func Valid_Field_Type
     end class Type
+
+    class Literal is
+    exports
+        func Int_Val(L : Literal) -> Univ_Integer is
+            case L.Value of
+                [S : IR::Literal_Str] =>
+                    if L.Type.Kind == #vec and then
+                        Get_Vec(L.Type).Kind == #int
+                    then
+                        return SailGate::Util::From_Unsigned_String(S.Str);
+                    else
+                        return SailGate::Util::From_Signed_String(S.Str);
+                    end if
+                [C : IR::Literal_Char] =>
+                    if C.Ch == '1' then
+                        return 1;
+                    else
+                        return 0;
+                    end if
+                [N : IR::Literal_Num] =>
+                    return N.Num;
+                [..] => {#false}
+            end case
+        end func Int_Val
+    end class Literal
 end class SailGate::IR

@@ -37,7 +37,7 @@ interface SailGate::Sema::IR_Builder<> is
 
         func Context(E : Entity_Builder) -> Reader::Context;
 
-        //func Get_Inputs()
+        func Count_Seq_Domains(E : Entity_Builder) -> Univ_Integer;
 
         /// Adds entity in port
         func Add_Input(var E : Entity_Builder;

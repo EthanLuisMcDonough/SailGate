@@ -8,6 +8,7 @@ import SailGate::IR;
 import SailGate::Util::Starts_With;
 import SailGate::Util::Result;
 import SailGate::Util::Strip_Quotes;
+import SailGate::Util::From_Signed_String;
 
 class SailGate::Sema::Reader is
     type Align_Result is Result<IR::Alignment, Sema_Error>;
@@ -247,6 +248,20 @@ class SailGate::Sema::Reader is
         const Left_Type := Get_Type(Left_Expr);
         const Right_Type := Get_Type(Right_Expr);
 
+        // Check for negative value in shift operation
+        if Type.Kind == #vec and then Get_Vec(Type).Kind == #int and then
+            (Bin_Op == #left_shift_op or else Bin_Op == #right_shift_op)
+        then
+            case Right_Expr of
+                [Lit : IR::Literal] =>
+                    if Int_Val(Lit) < 0 then
+                        return Expr_Result::Err((
+                            Kind => #negative_shift,
+                            Source => Get_Source(Right_Expr)));
+                    end if
+            end case
+        end if
+
         // Make sure the left and right type sizes match
         // the resolved type when an async and clocked value
         // are concatenated
@@ -275,6 +290,8 @@ class SailGate::Sema::Reader is
     func Walk_Unary_Shared(Ctx : Context; Un_Op : IR::Unary_Op;
         Value : Tree; Type : IR::Type) -> Expr_Result
     is
+        const Val_Src := Util::Find_Tree_Source(Value);
+
         // Walk value op
         const Walk_Res := Walk_Expr(Ctx, Value);
         if Is_Err(Walk_Res) then
@@ -282,9 +299,22 @@ class SailGate::Sema::Reader is
         end if
         const Value_Expr := Ok(Walk_Res);
 
+        // Transform -Lit(Num) to Lit(-Num)
+        if Un_Op == #minus_op then
+            case Value_Expr of
+                [Lit : IR::Literal] =>
+                    case Lit.Value of
+                        [N : IR::Literal_Num] =>
+                            const New_Num : IR::Literal_Num := (Num => -N.Num);
+                            const New_Lit : IR::Literal := (Value => New_Num,
+                                Type => Type, Source => Val_Src);
+                            return Expr_Result::Ok(New_Lit);
+                    end case
+            end case
+        end if
+
         const Expr : IR::Unary := (Value => Value_Expr,
-            Source => Util::Find_Tree_Source(Value),
-            Op => Un_Op, Type => Type);
+            Source => Val_Src, Op => Un_Op, Type => Type);
         return Expr_Result::Ok(Expr);
     end func Walk_Unary_Shared
 
@@ -434,6 +464,13 @@ class SailGate::Sema::Reader is
             return Expr_Result::Err(Err(Walk_Res));
         end if
         const Value := Ok(Walk_Res);
+
+        case Value of
+            [L : IR::Literal] =>
+                return Expr_Result::Err((
+                    Kind => #literal_conversion,
+                    Source => L.Source));
+        end case
 
         const Conv_Expr : IR::Conversion := (
             Source => Util::Find_Tree_Source(T),
@@ -586,9 +623,6 @@ class SailGate::Sema::Reader is
         return Expr_Result::Err((Kind => #invalid_invocation,
             Source => Util::Find_Tree_Source(T)));
     end func Walk_Expr_Invoc
-
-    // We don't expect to see any identifiers inside a selector
-    const Selector_Ctx : Context := (Enclosing_Module => "");
 exports
     func Dom_Param(D : Decl) -> Domain_Result is
         const Dom_Name := Util::Get_Decl_Name(D);
@@ -881,13 +915,6 @@ exports
         // Prefer resolved interpretation over raw interpretation
         const T := Util::Resolved(Expr_Tree);
         const SI := Sem_Info(T);
-
-        if SI is null then
-            Println("OH NO");
-            if Sem_Info(Expr_Tree) not null then
-                Println("solution");
-            end if
-        end if
         const Src := Util::Find_Tree_Source(T);
 
         // Read expression type

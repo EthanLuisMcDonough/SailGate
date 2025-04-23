@@ -17,6 +17,8 @@
         "sema/ir_builder.psi",
         "sema/validator.psi",
         "sema/extractor.psi",
+        "lowering/lowering.psi",
+        "lowering/vhdl_lowering.psi",
         "driver.psi"
     ],
     "sources": ["**/*.psl"],

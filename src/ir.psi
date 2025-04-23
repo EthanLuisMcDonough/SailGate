@@ -96,6 +96,7 @@ interface SailGate::IR<> is
     interface Wire<> implements Concurrent_Def<> is
         const Name : Univ_String;
         const Type : Type;
+        const Value : Expression+;
         const Source : Pos;
     end interface Wire
 
@@ -131,10 +132,14 @@ interface SailGate::IR<> is
             is ("'" | L.Ch | "'");
     end interface Literal_Char
 
+    type Expr_Kind is Enum<[#ident, #inst_access, #literal,
+        #binary, #unary, #slice, #index, #conversion]>
+
     abstract interface Expression<> is
         func Get_Type(E : Expression) -> Type;
         func To_String(E : Expression) -> Univ_String;
         func Get_Source(E : Expression) -> Pos;
+        func Get_Kind(E : Expression) -> Expr_Kind;
     end interface Expression
 
     interface Identifier<> implements Expression<> is
@@ -145,6 +150,7 @@ interface SailGate::IR<> is
         func Get_Type(I : Identifier) -> Type is (I.Type);
         func To_String(I : Identifier) -> Univ_String is (I.Name);
         func Get_Source(I : Identifier) -> Pos is (I.Source);
+        func Get_Kind(I : Identifier) -> Expr_Kind is (#ident);
     end interface Identifier
 
     interface Inst_Access<> implements Expression<> is
@@ -157,6 +163,7 @@ interface SailGate::IR<> is
         func To_String(I : Inst_Access) -> Univ_String
             is (I.Name | "." | I.Property);
         func Get_Source(I : Inst_Access) -> Pos is (I.Source);
+        func Get_Kind(I : Inst_Access) -> Expr_Kind is (#inst_access);
     end interface Inst_Access
 
     interface Literal<> implements Expression<> is
@@ -167,12 +174,14 @@ interface SailGate::IR<> is
         func Get_Type(L : Literal) -> Type is (L.Type);
         func To_String(L : Literal) -> Univ_String is (To_String(L.Value));
         func Get_Source(L : Literal) -> Pos is (L.Source);
+        func Get_Kind(L : Literal) -> Expr_Kind is (#literal);
+        func Int_Val(L : Literal) -> Univ_Integer;
     end interface Literal
 
     type Binary_Op is Enum<[#plus_op, #minus_op, #times_op,
         #divide_op, #combine_op, #left_shift_op, #right_shift_op,
         #and_op, #or_op, #xor_op, #less_op, #leq_op,
-        #equal_op, #neq_op, #geq_op, #greater_op, #combine_op]>
+        #equal_op, #neq_op, #geq_op, #greater_op]>
     type Unary_Op is Enum<[#not_op, #minus_op]>;
     type Conversion_Op is Enum<[#to_uint, #to_int, #to_vec,
         #sync, #unsafe_cast]>;
@@ -188,6 +197,7 @@ interface SailGate::IR<> is
         func To_String(B : Binary) -> Univ_String is ("(" | To_String(B.Op) |
             ": " | To_String(B.Left) | ", " | To_String(B.Right) | ")");
         func Get_Source(B : Binary) -> Pos is (B.Source);
+        func Get_Kind(B : Binary) -> Expr_Kind is (#binary);
     end interface Binary
 
     interface Unary<> implements Expression<> is
@@ -200,6 +210,7 @@ interface SailGate::IR<> is
         func To_String(U : Unary) -> Univ_String is ("(" |
             To_String(U.Op) | ": " | To_String(U.Value) | ")");
         func Get_Source(U : Unary) -> Pos is (U.Source);
+        func Get_Kind(U : Unary) -> Expr_Kind is (#unary);
     end interface Unary
 
     interface Slice<> implements Expression<> is
@@ -213,6 +224,7 @@ interface SailGate::IR<> is
         func To_String(S : Slice) -> Univ_String is ("(slice: " |
             To_String(S.Value) | ", " | S.Start | ", " | S.End | ")");
         func Get_Source(S : Slice) -> Pos is (S.Source);
+        func Get_Kind(S : Slice) -> Expr_Kind is (#slice);
     end interface Slice
 
     interface Index<> implements Expression<> is
@@ -225,6 +237,7 @@ interface SailGate::IR<> is
         func To_String(I : Index) -> Univ_String is ("(index: " |
             To_String(I.Value) | ", " | I.Index | ")");
         func Get_Source(I : Index) -> Pos is (I.Source);
+        func Get_Kind(I : Index) -> Expr_Kind is (#index);
     end interface Index
 
     interface Conversion<> implements Expression<> is
@@ -238,6 +251,7 @@ interface SailGate::IR<> is
         func To_String(C : Conversion) -> Univ_String is ("(" | 
             To_String(C.Op) | ": " | To_String(C.Converted) | ")");
         func Get_Source(C : Conversion) -> Pos is (C.Source);
+        func Get_Kind(C : Conversion) -> Expr_Kind is (#conversion);
     end interface Conversion
 
     abstract interface Statement<> is

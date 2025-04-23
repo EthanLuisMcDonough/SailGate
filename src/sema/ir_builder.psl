@@ -20,6 +20,8 @@ exports
         var Concurrent : IR::Concurrent_Defs := [];
         var Scope : IR::Entity_Scope := [];
 
+        var Sequential_Domains : Univ_Integer := 0;
+
         var Has_Return : Boolean := #false;
         var Is_Ready : Boolean := #false;
 
@@ -59,6 +61,9 @@ exports
         func Add_Clock_Param(var E : Entity_Builder; Dom : IR::Domain) is
             E.Domains |= (Key => Dom.Name, Value => Dom);
             Add_Scope_Item(E, Dom.Name, #domain);
+            if Dom.Kind != #async then
+                E.Sequential_Domains += 1;
+            end if
             // If the entity has a type param, we know it can't be top level
             E.Is_Top_Level := #false;
         end func Add_Clock_Param
@@ -68,9 +73,16 @@ exports
                 const Dom_Src := Decl_Source_Pos(Dom.Decl);
                 return (Kind => #dom_obj_in_abstract, Source => Dom_Src);
             end if
+            if Dom.Kind != #async then
+                E.Sequential_Domains += 1;
+            end if
             E.Domains |= (Key => Dom.Name, Value => Dom);
             Add_Scope_Item(E, Dom.Name, #domain);
         end func Add_Clock_Obj
+
+        func Count_Seq_Domains(E : Entity_Builder) -> Univ_Integer is
+            return E.Sequential_Domains;
+        end func Count_Seq_Domains
 
         func Context(E : Entity_Builder) -> Reader::Context is
             return (Enclosing_Module => E.Name);

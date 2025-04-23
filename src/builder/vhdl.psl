@@ -1,3 +1,4 @@
+import SailGate::Prelude;
 
 class SailGate::Builder::VHDL is
     const Space : Univ_String := " ";
@@ -9,12 +10,7 @@ class SailGate::Builder::VHDL is
         return "(" | U | ")";
     end func Paren
 
-    /// Check if a unary operator is a logical operator (=, /=, >=, etc.)
-    func Returns_Bool(U : Unary_Op) -> Boolean is
-        return U == #logic_not;
-    end func Returns_Bool
-
-    /// Same as above, but for binary operators
+    /// Check if a binary operator is a logical operator (=, /=, >=, etc.)
     func Returns_Bool(B : Binary_Op) -> Boolean is
         return (case B of
             [#eq | #neq | #lt | #gt | #lte | #gte] => #true;
@@ -80,6 +76,13 @@ class SailGate::Builder::VHDL is
 
         return Indent_Str | "port" | Paren(Ports) | ";";
     end func Gen_Portdef
+
+    func Shift_Dir_Fnc(Dir : Shift_Direction) -> Univ_String is
+        case Dir of
+            [#left_shift_op] => return "SHIFT_LEFT";
+            [#right_shift_op] => return "SHIFT_RIGHT";
+        end case
+    end func Shift_Dir_Fnc
 exports
     func Is_Valid_Ident(S : Univ_String) -> Boolean is
         return |S| > 0 and then S[1] in Alphabetic_Range
@@ -140,8 +143,8 @@ exports
 
         func Create(Len : Length; Offset : Index; Dir : Vec_Dir) -> Vec_Range is
             return (case Dir of
-                [#up] => (First => Offset, Last => Offset + [[Len]]);
-                [#down] => (First => Offset + [[Len]], Last => Offset));
+                [#up] => (First => Offset, Last => Offset + [[Len - 1]]);
+                [#down] => (First => Offset + [[Len - 1]], Last => Offset));
         end func Create
 
         func Get_Max(V : Vec_Range) -> Index is
@@ -244,8 +247,7 @@ exports
         // LOGIC_VEC supports bitwise not. Boolean supports bit not and
         // logic not
         func Supports(S : Scalar_Type; U : Unary_Op) -> Boolean is
-            return U == #not or else (S.Kind == #boolean
-                and then U == #logic_not);
+            return U == #not;
         end func Supports
 
         func Supports_Special(S : Scalar_Type; Sp : Special_Op) -> Boolean is
@@ -288,13 +290,14 @@ exports
 
         func Supports(V : Vector_Type; U : Unary_Op) -> Boolean is
             return (case U of
-                [#not] => #true;
                 [#negation] => V.Kind == #int;
-                [#logic_not] => #false);
+                [#not] => #true);
         end func Supports
 
         func Supports_Special(V : Vector_Type; S : Special_Op) -> Boolean is
-            return #true;
+            return (case V.Kind of
+                [#logic] => S != #shift;
+                [..] => #true);
         end func Supports_Special
 
         func Range(V : Vector_Type) -> optional Vec_Range is
@@ -339,6 +342,15 @@ exports
             var T : Type+ := Vector_Type::Create(Kind, (|Str| - 1)..0);
             return (Value => "\"" | Str | "\"", T => T)
         end func Vec
+
+        func Int(S : Univ_Integer; Kind : Vector_Type) -> Literal is
+            if Type_Id(Kind) == #int then
+                {Prelude::Util::In_SBounds(S, Size(Range(Kind)))}
+            else
+                {Prelude::Util::In_UBounds(S, Size(Range(Kind)))}
+            end if
+            return (Value => To_String(S), T => Kind);
+        end func Int
     end class Literal
 
     class Identifier is
@@ -435,7 +447,7 @@ exports
 
     func Gen_Op(ref U : Unary_Op) -> Univ_String is
         case U of
-            [#not | #logic_not] => return "not ";
+            [#not] => return "not ";
             [#negation] => return "-";
         end case
     end func Gen_Op
@@ -449,7 +461,6 @@ exports
             [#and] => "and";
             [#or] => "or";
             [#xor] => "xor";
-            [#mod] => "mod";
             [#eq] => "=";
             [#neq] => "/=";
             [#lt] => "<";
@@ -471,11 +482,7 @@ exports
         end func Gen_Expr
 
         func Get_Type(ref U : Unary) -> Type+ is
-            if Returns_Bool(U.Operation) then
-                return Scalar_Type::Create(#boolean);
-            else
-                return Get_Type(U.Operand);
-            end if
+            return Get_Type(U.Operand);
         end func Get_Type
 
         func Access(ref U : Unary) -> Access_Kind is
@@ -517,6 +524,62 @@ exports
             return #false;
         end func Is_Static
     end class Binary
+
+    class Shift is
+        const Dir : Shift_Direction;
+        const Right : Expression+;
+        const Left : Expression+;
+    exports
+        func Create(Dir : Shift_Direction; L : Expression+; R : Expression+) -> Shift is
+            return (Dir => Dir, Left => L, Right => R);
+        end func Create
+
+        func Gen_Expr(ref S : Shift) -> Univ_String is
+            return Shift_Dir_Fnc(S.Dir) | Paren(Gen_Expr(S.Left) |
+                ", to_integer" | Paren(Gen_Expr(S.Right)));
+        end func Gen_Expr
+
+        func Get_Type(ref S : Shift) -> Type+ is
+            return Get_Type(S.Left);
+        end func Get_Type
+
+        func Access(ref S : Shift) -> Access_Kind is
+            return #readable;
+        end func Access
+
+        func Is_Static(ref S : Shift) -> Boolean is
+            return #false;
+        end func Is_Static
+    end class Shift
+
+    class Const_Shift is
+        const Dir : Shift_Direction;
+        const Left : Expression+;
+        const Right : Univ_Integer;
+    exports
+        func Create(Dir : Shift_Direction; L : Expression+;
+            R : Univ_Integer) -> Const_Shift
+        is
+            return (Dir => Dir, Left => L, Right => R);
+        end func Create
+
+        func Gen_Expr(ref C : Const_Shift) -> Univ_String is
+            return Shift_Dir_Fnc(C.Dir) | Paren(Gen_Expr(C.Left) |
+                ", " | C.Right);
+        end func Gen_Expr
+
+        func Get_Type(ref C : Const_Shift) -> Type+ is
+            return Get_Type(C.Left);
+        end func Get_Type
+
+        func Access(ref C : Const_Shift) -> Access_Kind is
+            return #readable;
+        end func Access
+
+        func Is_Static(ref C : Const_Shift) -> Boolean is
+            return #false;
+        end func Is_Static
+    end class Const_Shift
 
     class Vec_Conversion is
         var Val : Expression+;
@@ -689,7 +752,7 @@ exports
 
     func Gen_Block(ref B : Block; Indent : Indent_Size) -> Univ_String is
         if |B| == 0 then
-            return (Tab * Indent) | "null;" | Br;
+            return (Tab * Indent) | "null;";
         end if
 
         var Block_Str : Univ_String := "";
@@ -825,15 +888,16 @@ exports
 
             var If_Str := Line_Indent | "if " | Gen_Expr(Get_Cond(I.Main))
                           | " then" | Br;
-            If_Str |= Gen_Block(Get_Body(I.Main), Indent + 1);
+            If_Str |= Gen_Block(Get_Body(I.Main), Indent + 1) | Br;
 
             for Ind in 1..|I.Elifs| forward loop
                 If_Str |= Line_Indent | "elsif " | Gen_Expr(Get_Cond(I.Elifs[Ind])) |
-                          " then" | Br | Gen_Block(Get_Body(I.Elifs[Ind]), Indent + 1);
+                          " then" | Br | Gen_Block(Get_Body(I.Elifs[Ind]), Indent + 1) | Br;
             end loop
 
             if I.Else not null then
-                If_Str |= Line_Indent | "else" | Br | Gen_Block(I.Else, Indent + 1) | Br;
+                If_Str |= Line_Indent | "else" | Br |
+                    Gen_Block(I.Else, Indent + 1) | Br;
             end if
 
             return If_Str | Line_Indent | "end if;";
@@ -865,7 +929,7 @@ exports
                 Lits |= Gen_Expr(C.L[I]);
             end loop
 
-            return (Indent * Tab) | "case " | Lits | " =>" | Br |
+            return (Indent * Tab) | "when " | Lits | " =>" | Br |
                    Gen_Block(C.B, Indent + 1);
         end func Gen_Case
 
@@ -904,7 +968,8 @@ exports
                 Switch_Body |= Gen_Case(S.Cases[I], Indent + 1) | Br;
             end loop
 
-            Switch_Body |= T | Tab | "others =>" | Br | Gen_Block(S.Default, Indent + 2);
+            Switch_Body |= T | Tab | "when others =>" | Br |
+                Gen_Block(S.Default, Indent + 2);
             
             return T | "case " | Gen_Expr(S.Val) | " is" | Br | Switch_Body |
                    Br | T | "end case;";
@@ -978,8 +1043,9 @@ exports
         const Async_Region : Block;
     exports
         func Create(Name : Ident_String; Ports : Vector<Port>;
-                    Registers : Vector<Register>; Components : Vector<Component>;
-                    Async_Region : Block; Processes : Vector<Process>) -> Entity is
+            Registers : Vector<Register>; Components : Vector<Component>;
+            Async_Region : Block; Processes : Vector<Process>) -> Entity
+        is
             var Var_Names : Set<Univ_String> := [];
             var Inputs : Vector<Port> := [];
             var Outputs : Vector<Port> := [];
@@ -1030,7 +1096,7 @@ exports
                             Gen_Portdef(E.Inputs, E.Outputs, 1) | Br | 
                             "end entity;" | Br * 2;
             const A_Text := "architecture " | E.Name | "_Behavior of " | E.Name | " is" | Br
-                            | Components | Br | Registers | "begin" | Br | AR |Processes |
+                            | Components | Registers | "begin" | Br | AR |Processes |
                             "end architecture;" | Br;
 
             return E_Text | A_Text;

@@ -15,6 +15,9 @@ interface SailGate::Util<> is
     func To_Binary_String(U : Univ_Integer;
         Len : Univ_Integer := 1 {Len > 0}) -> Univ_String;
 
+    func From_Unsigned_String(S : Univ_String {|S| > 0}) -> Unsigned_64;
+    func From_Signed_String(S : Univ_String {|S| > 1}) -> Univ_Integer;
+
     type Either_Kind is Enum<[#left, #right]>;
     interface Either<L is Assignable<>; R is Assignable<>> is
         const Kind : Either_Kind;

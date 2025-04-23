@@ -1,0 +1,2 @@
+interface SailGate::Lowering<> is
+end interface SailGate::Lowering

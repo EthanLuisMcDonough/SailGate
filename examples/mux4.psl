@@ -1,0 +1,33 @@
+import SailGate::Prelude::*, *;
+
+interface Mux_4<Dom : Domain> is
+    const Output : Vec<4, Dom>;
+
+    func Run(Select : Vec<2, Dom>;
+        A : Vec<4, Dom>; B : Vec<4, Dom>;
+        C : Vec<4, Dom>; D : Vec<4, Dom>) -> Mux_4;
+end interface Mux_4
+
+class Mux_4 is
+exports
+    func Run(Select : Vec<2, Dom>;
+        A : Vec<4, Dom>; B : Vec<4, Dom>;
+        C : Vec<4, Dom>; D : Vec<4, Dom>) -> Mux_4
+    is
+        var Out_Val : Vec<4, Dom> := 0;
+
+        case Switch(Select) of
+            ["00"] =>
+                Out_Val := A;
+            ["01"] =>
+                Out_Val := B;
+            ["10"] =>
+                Out_Val := C;
+            ["11"] =>
+                Out_Val := D;
+        end case
+
+        return (Output => Out_Val);
+    end func Run
+end class Mux_4
+

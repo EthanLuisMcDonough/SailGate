@@ -9,7 +9,11 @@ func Main(Args : Basic_Array<Univ_String>) is
         Dump(Err);
         return;
     end if
-    Dump(Validator);
 
     var System := SailGate::Lowering::VHDL_Lowering::Lower(Validator.Entities);
+    var IO := PSL::Core::IO::Get_IO();
+    for each [File => Contents] of Gen_Design(System) forward loop
+        var OS := PSL::Core::File_Output_Stream::Create(IO, File);
+        Print(OS, Contents);
+    end loop
 end func Main

@@ -5,3 +5,5 @@ local_test
 .lit_test_times.txt
 Output
 .DS_Store
+workspace
+*.cf

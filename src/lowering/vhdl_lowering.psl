@@ -560,7 +560,6 @@ class SailGate::Lowering::VHDL_Lowering is
                     var Var_Map : VHDL::Component_Instance::Port_Map := [];
                     ref Target_Entity => Entities[Inst.Entity];
                     ref Target_Component => System_Components[Inst.Entity];
-                    Println(Inst.Entity);
 
                     // Add clock domain args
                     for each Dom_Mapping of Inst.Dom_Args forward loop
@@ -613,7 +612,6 @@ class SailGate::Lowering::VHDL_Lowering is
                     // Map outputs
                     for each [Name => Type] of Target_Entity.Outputs forward loop
                         const Output_Name := Convert_Name::Output(Name);
-                        Println(Output_Name);
                         const Wire_Name := Convert_Name::Inst_Out_Wire(
                             Inst.Name, Name);
                         const Inst_Out := VHDL::Register::Create(
@@ -687,8 +685,6 @@ class SailGate::Lowering::VHDL_Lowering is
             Ports => Ports, Registers => Registers,
             Components => Components, Async_Region => Async_Region,
             Processes => Processes);
-        Println(Gen_Entity(Entity));
-
         return Entity;
     end func Lower
 exports

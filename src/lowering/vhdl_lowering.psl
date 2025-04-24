@@ -104,7 +104,7 @@ class SailGate::Lowering::VHDL_Lowering is
 
     /// Lower literals in cases where the literal has to be a string
     /// e.g. registers and case selectors
-    func Lower_Str_Rep(Lit : IR::Literal) -> VHDL::Literal is
+    func Lower_Lit(Lit : IR::Literal) -> VHDL::Literal is
         const Type := Lower(Lit.Type);
         case Lit.Value of
             [S : IR::Literal_Str] =>
@@ -117,7 +117,7 @@ class SailGate::Lowering::VHDL_Lowering is
             [..] =>
                 {#false}
         end case
-    end func Lower_Str_Rep
+    end func Lower_Lit
 
     /// Lower literals in cases where the literal has to be an integer
     /// e.g. right shift argument
@@ -136,24 +136,6 @@ class SailGate::Lowering::VHDL_Lowering is
                 {#false}
         end case
     end func Lower_Int_Rep
-
-    func Lower_Lit(Lit : IR::Literal) -> VHDL::Literal is
-        if Lit.Type.Kind == #vec and then Get_Vec(Lit.Type).Kind == #logic then
-            return Lower_Str_Rep(Lit);
-        end if
-
-        const Type := Lower(Lit.Type);
-        case Lit.Value of
-            [S : IR::Literal_Str] =>
-                return VHDL::Literal::Vec(S.Str, Type_Id(Type));
-            [C : IR::Literal_Char] =>
-                return VHDL::Literal::Logic(C.Ch);
-            [N : IR::Literal_Num] =>
-                return Lower_Int(N.Num, Type);
-            [..] =>
-                {#false}
-        end case
-    end func Lower_Lit
 
     interface Convert_Name<> is
         func Input(S : Univ_String) -> Univ_String is ("i_" | S);
@@ -201,14 +183,8 @@ class SailGate::Lowering::VHDL_Lowering is
     func Lower_Binary(B : IR::Binary; S : Scope; var V : Visitor+) -> VHDL::Expression+ is
         case B.Op of
             [#left_shift_op | #right_shift_op] =>
-                var Left : VHDL::Expression+;
+                var Left : VHDL::Expression+ := Lower(B.Left, S, V);
                 const Dir : Univ_Enumeration := [[B.Op]];
-                case B.Left of
-                    [L : IR::Literal] =>
-                        Left := Lower_Str_Rep(L);
-                    [..] =>
-                        Left := Lower(B.Left, S, V);
-                end case
                 case B.Right of
                     [L : IR::Literal] =>
                         return VHDL::Const_Shift::Create(Dir, Left, Int_Val(L));
@@ -347,7 +323,7 @@ class SailGate::Lowering::VHDL_Lowering is
             ref Case => C.Cases[I];
             var Case_Lits : Vector<VHDL::Literal> := [];
             for J in 1..|Case.Values| forward loop
-                Case_Lits |= Lower_Str_Rep(Case.Values[J]);
+                Case_Lits |= Lower_Lit(Case.Values[J]);
             end loop
             var Body := Lower_New_Body(Case.Body, S, V, Regs, AS);
             Cases |= VHDL::Case::Create(Case_Lits, Body);
@@ -402,7 +378,7 @@ class SailGate::Lowering::VHDL_Lowering is
         for each [Name => Reg] of E.Registers {Reg.Type.Dom == D} forward loop
             if Reg.Init not null then
                 const Reg_Var := S[Name];
-                RB |= VHDL::Assignment::Create(Reg_Var, Lower_Str_Rep(Reg.Init));
+                RB |= VHDL::Assignment::Create(Reg_Var, Lower_Lit(Reg.Init));
             end if
         end loop
         return RB;
@@ -533,7 +509,7 @@ class SailGate::Lowering::VHDL_Lowering is
             const Reg_Type := Lower(Reg.Type);
             var Reg_Init : optional VHDL::Literal := null;
             if Reg.Init not null then
-                Reg_Init := Lower_Str_Rep(Reg.Init);
+                Reg_Init := Lower_Lit(Reg.Init);
             end if
             const Register := VHDL::Register::Create(Reg_Name, Reg_Type, Reg_Init);
             Entity_Scope |= (Key => Name, Value => Ref(Register));

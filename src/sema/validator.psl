@@ -153,8 +153,10 @@ class SailGate::Sema::Validator is
         var Dom_Args : IR::Instance_Dom_Map := [];
 
         // Iterate through target entity domain names
-        const Target_Domains := Keys(M.Domains);
-        var Next_Dom : Univ_String := First(Target_Domains);
+        var Target_Domains : Vector<IR::Domain> := [];
+        for each [Name => Target_Dom] of M.Domains forward loop
+            Target_Domains |= Target_Dom;
+        end loop
 
         // Iterate through instance actuals
         const Inst_Actuals := Trees_Of_Actuals(SI);
@@ -166,7 +168,7 @@ class SailGate::Sema::Validator is
             end if
 
             const Local_Dom := Ok(Local_Arg_Err);
-            const Target_Dom := M.Domains[Next_Dom];
+            const Target_Dom := Target_Domains[I];
 
             if Local_Dom.Kind < Target_Dom.Kind then
                 return (Kind => #underqualified_dom,
@@ -174,7 +176,6 @@ class SailGate::Sema::Validator is
             end if
 
             Dom_Args |= (Target => Target_Dom, Local => Local_Dom);
-            Next_Dom := Next(Target_Domains, Next_Dom);
         end loop
 
         // Component arguments
@@ -192,10 +193,9 @@ class SailGate::Sema::Validator is
         end if
 
         // Iterate through target components
-        const Target_Components := Keys(M.Inputs);
-        var Next_Comp : Univ_String := First(Target_Components);
 
         for I in 2..Num_Operands(Inst_Val) forward loop
+            const Next_Comp := Input_At_Index(M, I);
             const Arg_Expr := Nth_Operand(Inst_Val, I);
             const Arg_Err := Reader::Walk_Expr(Context(B), Arg_Expr);
             if Is_Err(Arg_Err) then
@@ -203,7 +203,6 @@ class SailGate::Sema::Validator is
             end if
 
             Expr_Args |= (Key => Next_Comp, Value => Ok(Arg_Err));
-            Next_Comp := Next(Target_Components, Next_Comp);
         end loop
 
         const Inst : IR::Instance := (
@@ -586,7 +585,7 @@ class SailGate::Sema::Validator is
                 end if
 
                 // Add input
-                const Input_Err := Add_Input(Builder, Param_Name, Param_Type);
+                const Input_Err := Add_Input(Builder, Param_Name, Param_Type, I);
                 if Input_Err not null then
                     return Input_Err;
                 end if

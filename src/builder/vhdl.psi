@@ -58,7 +58,6 @@ interface SailGate::Builder::VHDL<> is
 
         func Get_Nth(V : Vec_Range; I : Index {[[I]] < Get_Size(V)}) -> Index;
         func Gen_Range(V : Vec_Range) -> Univ_String;
-        func Size(V : Vec_Range) -> Univ_Integer is (Get_Max(V) - Get_Min(V));
     end interface Vec_Range
 
     /// Base class for VHDL types

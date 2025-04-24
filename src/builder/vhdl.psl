@@ -345,9 +345,9 @@ exports
 
         func Int(S : Univ_Integer; Kind : Vector_Type) -> Literal is
             if Type_Id(Kind) == #int then
-                {Prelude::Util::In_SBounds(S, Size(Range(Kind)))}
+                {Prelude::Util::In_SBounds(S, Get_Size(Range(Kind)))}
             else
-                {Prelude::Util::In_UBounds(S, Size(Range(Kind)))}
+                {Prelude::Util::In_UBounds(S, Get_Size(Range(Kind)))}
             end if
             return (Value => To_String(S), T => Kind);
         end func Int

@@ -7,6 +7,7 @@ import SailGate::Util::From_Unsigned_String;
 import SailGate::Util::From_Signed_String;
 
 class SailGate::Lowering::VHDL_Lowering is
+    type Component_Map is Ordered_Map<Univ_String, VHDL::Component>;
 
     /// Visitor type for analyzing variables that are visited
     abstract interface Visitor<> is
@@ -160,8 +161,15 @@ class SailGate::Lowering::VHDL_Lowering is
         func Register(S : Univ_String) -> Univ_String is ("reg_" | S);
         func Wire(S : Univ_String) -> Univ_String is ("w_" | S);
         func Internal(Id : Univ_Integer) -> Univ_String is ("internal_" | Id);
+        func Inst_Access(N : Univ_String; P : Univ_String) -> Univ_String
+            is (N | "." | P);
         func Inst_Access(I : IR::Inst_Access) -> Univ_String
-            is (I.Name | "." | I.Property);
+            is (Inst_Access(I.Name, I.Property));
+        func Inst(Name : Univ_String) -> Univ_String is ("inst_" | Name);
+        func Inst_In_Wire(Inst : Univ_String; Prop : Univ_String) -> Univ_String
+            is ("inst_in_" | Inst | "_" | Prop);
+        func Inst_Out_Wire(Inst : Univ_String; Prop : Univ_String) -> Univ_String
+            is ("inst_out_" | Inst | "_" | Prop);
         func Entity(E : Univ_String) -> Univ_String
             is ("entity_" | Replace(E, ':', '_'));
     end interface Convert_Name
@@ -400,7 +408,7 @@ class SailGate::Lowering::VHDL_Lowering is
         return RB;
     end func Gen_Reset_Block
 
-    ///
+    /// Generates reset condition/block
     func Gen_Reset_Cond(E : IR::Entity; Rst : VHDL::Port; D : IR::Domain;
         S : Scope) -> VHDL::Condition_Body
     is
@@ -410,12 +418,59 @@ class SailGate::Lowering::VHDL_Lowering is
         return VHDL::Condition_Body::Create(Reg_Check, Reg_Reset);
     end func Gen_Reset_Cond
     
+    /// Create component from entity definition
+    func Lower_Component(E : IR::Entity) -> VHDL::Component is
+        var In_Ports : Vector<VHDL::Port> := [];
+        var Out_Ports : Vector<VHDL::Port> := [];
 
-    func Lower(S : Validator::Entity_Map; E : IR::Entity) -> VHDL::Entity is
+        // Add clock domain inputs
+        for each [Name => Dom] of E.Domains forward loop
+            if Prelude::Clock(Dom.Kind) then
+                In_Ports |= VHDL::Port::In(
+                    Domain_Name::Clock(Dom),
+                    VHDL::Logic_Type);
+            end if
+
+            if Prelude::Reset(Dom.Kind) then
+                In_Ports |= VHDL::Port::In(
+                    Domain_Name::Reset(Dom),
+                    VHDL::Logic_Type);
+            end if
+
+            if Prelude::Clk_Rst_En(Dom.Kind) then
+                In_Ports |= VHDL::Port::In(
+                    Domain_Name::Enable(Dom),
+                    VHDL::Logic_Type);
+            end if
+        end loop
+
+        // Lower in ports
+        for each [Name => Type] of E.Inputs forward loop
+            const Port_Name := Convert_Name::Input(Name);
+            const Port_Type := Lower(Type);
+            In_Ports |= VHDL::Port::In(Port_Name, Port_Type);
+        end loop
+
+        // Lower out ports
+        for each [Name => Type] of E.Outputs forward loop
+            const Port_Name := Convert_Name::Output(Name);
+            const Port_Type := Lower(Type);
+            Out_Ports |= VHDL::Port::Out(Port_Name, Port_Type);
+        end loop
+
+        const Name := Convert_Name::Entity(E.Name);
+        return VHDL::Component::Create(Name, In_Ports, Out_Ports);
+    end func Lower_Component
+
+    func Lower(Entities : Validator::Entity_Map;
+        System_Components : Component_Map;
+        E : IR::Entity) -> VHDL::Entity
+    is
         var Entity_Scope : Scope := [];
         var Ports : Vector<VHDL::Port> := [];
         var Clock_Ports : Port_Scope := [];
         var Outputs : Port_Scope := [];
+        var Components : Vector<VHDL::Component> := [];
         var Registers : Vector<VHDL::Register> := [];
         var Async_Region : VHDL::Block := [];
         var Processes : Vector<VHDL::Process> := [];
@@ -448,6 +503,10 @@ class SailGate::Lowering::VHDL_Lowering is
                 Clock_Ports |= (Value => Port,
                     Key => Domain_Name::Enable(Dom));
             end if
+        end loop
+
+        for each Name of E.Dependencies forward loop
+            Components |= System_Components[Name];
         end loop
 
         // Lower in ports
@@ -497,8 +556,77 @@ class SailGate::Lowering::VHDL_Lowering is
                     // Process wire def
                     const Wire_Val := Lower(W.Value, Entity_Scope, Empty_Visitor);
                     Async_Region |= VHDL::Assignment::Create(Ref(Wire), Wire_Val)
-                [..] =>
-                    {*"NYI: entity instance lowering"* #false}
+                [Inst : IR::Instance] =>
+                    var Var_Map : VHDL::Component_Instance::Port_Map := [];
+                    ref Target_Entity => Entities[Inst.Entity];
+                    ref Target_Component => System_Components[Inst.Entity];
+                    Println(Inst.Entity);
+
+                    // Add clock domain args
+                    for each Dom_Mapping of Inst.Dom_Args forward loop
+                        ref Local => Dom_Mapping.Local;
+                        ref Target => Dom_Mapping.Target;
+
+                        if Prelude::Clock(Target.Kind) then
+                            const Target_Clk := Domain_Name::Clock(Target);
+                            const Local_Clk := Domain_Name::Clock(Local);
+                            Var_Map |= (Key => Target_Clk,
+                                Value => Ref(Clock_Ports[Local_Clk]));
+                        end if
+
+                        if Prelude::Reset(Target.Kind) then
+                            const Target_Rst := Domain_Name::Reset(Target);
+                            const Local_Rst := Domain_Name::Reset(Local);
+                            Var_Map |= (Key => Target_Rst,
+                                Value => Ref(Clock_Ports[Local_Rst]));
+                        end if
+
+                        if Prelude::Clk_Rst_En(Target.Kind) then
+                            const Target_En := Domain_Name::Enable(Target);
+                            const Local_En := Domain_Name::Enable(Local);
+                            Var_Map |= (Key => Target_En,
+                                Value => Ref(Clock_Ports[Local_En]));
+                        end if
+                    end loop
+
+                    // Map inputs
+                    for each [Field => Expr] of Inst.Inputs forward loop
+                        const Input_Name := Convert_Name::Input(Field);
+                        const Lowered_Expr := Lower(Expr, Entity_Scope,
+                            Empty_Visitor);
+                        case Get_Kind(Expr) of
+                            [#literal | #ident | #inst_access] =>
+                                Var_Map |= (Key => Input_Name,
+                                    Value => Lowered_Expr);
+                            [..] =>
+                                // Create signal that is assigned the given expression
+                                const Wire_Name := Convert_Name::Inst_In_Wire(
+                                    Inst.Name, Field);
+                                const Inst_In := VHDL::Register::Create(
+                                    Wire_Name, Get_Type(Lowered_Expr));
+                                Registers |= Inst_In;
+                                Async_Region |= VHDL::Assignment::Create(Ref(Inst_In), Lowered_Expr);
+                                Var_Map |= (Key => Input_Name, Value => Ref(Inst_In));
+                        end case
+                    end loop
+
+                    // Map outputs
+                    for each [Name => Type] of Target_Entity.Outputs forward loop
+                        const Output_Name := Convert_Name::Output(Name);
+                        Println(Output_Name);
+                        const Wire_Name := Convert_Name::Inst_Out_Wire(
+                            Inst.Name, Name);
+                        const Inst_Out := VHDL::Register::Create(
+                            Wire_Name, Lower(Type));
+                        const Var_Name := Convert_Name::Inst_Access(Inst.Name, Name);
+                        Registers |= Inst_Out;
+                        Var_Map |= (Key => Output_Name, Value => Ref(Inst_Out));
+                        Entity_Scope |= (Key => Var_Name, Value => Ref(Inst_Out));
+                    end loop
+
+                    Async_Region |= VHDL::Component_Instance::Create(
+                        Convert_Name::Inst(Inst.Name),
+                        Target_Component, Var_Map);
             end case
         end loop
 
@@ -557,7 +685,7 @@ class SailGate::Lowering::VHDL_Lowering is
         const Entity := VHDL::Entity::Create(
             Name => Convert_Name::Entity(E.Name),
             Ports => Ports, Registers => Registers,
-            Components => [], Async_Region => Async_Region,
+            Components => Components, Async_Region => Async_Region,
             Processes => Processes);
         Println(Gen_Entity(Entity));
 
@@ -573,8 +701,12 @@ exports
 
     func Lower(S : Validator::Entity_Map) -> VHDL::Design is
         var Entities : Vector<VHDL::Entity> := [];
+        var Components : Component_Map := [];
+        for each [Name => Entity] of S {not Entity.Is_Top_Level} forward loop
+            Components |= (Key => Name, Value => Lower_Component(Entity));
+        end loop
         for each [Name => Entity] of S forward loop
-            Entities |= Lower(S, Entity);
+            Entities |= Lower(S, Components, Entity);
         end loop
         return VHDL::Design::Create(Entities);
     end func Lower

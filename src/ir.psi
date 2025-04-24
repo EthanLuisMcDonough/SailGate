@@ -100,10 +100,16 @@ interface SailGate::IR<> is
         const Source : Pos;
     end interface Wire
 
+    interface Dom_Pair<> is
+        const Target : Domain;
+        const Local : Domain;
+    end interface Dom_Pair
+    type Instance_Dom_Map is Vector<Dom_Pair>;
+
     interface Instance<> implements Concurrent_Def<> is
         const Name : Univ_String;
         const Inputs : Expr_Map;
-        const Domain_Args : Vector<IR::Domain>;
+        const Dom_Args : Instance_Dom_Map;
         const Entity : Univ_String;
         const Source : Pos;
     end interface Instance
@@ -318,12 +324,6 @@ interface SailGate::IR<> is
     type Implicit_Processes is Ordered_Map<Univ_String, Dom_Process>;
     type Processes is Vector<Process+>;
 
-    /// Local signature used by entity
-    interface Component<> is
-        const Full_Name : Univ_String;
-        const Dom_Args : Ordered_Map<Univ_String, Univ_String>;
-    end interface Component
-
     interface Entity<> is
         const Scope : Entity_Scope;
         const Name : Univ_String;
@@ -333,7 +333,7 @@ interface SailGate::IR<> is
         const Outputs : Port_Def;
         const Output_Values : Expr_Map;
         const Registers : Reg_Def;
-        const Components : Vector<Component>;
+        const Dependencies : Ordered_Set<Univ_String>;
 
         const Domains : Domain_Map;
         const Impl : Implicit_Processes;

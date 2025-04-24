@@ -21,6 +21,23 @@ class SailGate::Sema::Validator is
     end interface Pending_Data
     var Pending_Entities : Ordered_Map<Univ_String, Pending_Data>;
 
+    /// Returns an error if an object decl isn't constant
+    func Check_Const_Field(T : Tree {Kind(T) == #obj_decl};
+        Src : IR::Pos) -> optional Sema_Error
+    is
+        if Obj_Decl_Is_Ref(T) then
+            return (Kind => #ref_field_type, Source => Src);
+        end if
+
+        if Obj_Decl_Is_Var(T) then
+            return (Kind => #mutable_field, Source => Src);
+        end if
+
+        if Obj_Decl_Is_Optional(T) then
+            return (Kind => #optional_field, Source => Src);
+        end if
+    end func Check_Const_Field
+
     /// Walks top level binary operators. This will usually just be next_stmt_op
     func Walk_Stmt_Binary(var V : Validator; var B : Entity_Builder;
         T : Tree {Kind(T) == #binary}) -> optional Sema_Error
@@ -58,12 +75,6 @@ class SailGate::Sema::Validator is
                     Source => Util::Find_Tree_Source(T));
         end case
     end func Walk_Block_Binary
-
-    func Walk_Entity_Inst(var V : Validator; var B : Entity_Builder;
-        T : Tree {Kind(T) == #obj_decl}) -> optional Sema_Error
-    is
-        {*"Not implemented: entity instantiation"* #false}
-    end func Walk_Entity_Inst
 
     /// Walk wire definition
     func Walk_Wire(var B : Entity_Builder; T : Tree
@@ -118,6 +129,90 @@ class SailGate::Sema::Validator is
         return Add_Register(B, Reg);
     end func Walk_Register
 
+    /// Walk entity instance
+    func Walk_Entity_Inst(var B : Entity_Builder; 
+        M : Entity_Builder {M.Name != B.Name};
+        T : Tree {Kind(T) == #obj_decl};
+        SI : Reflection::Decl {Kind(SI) == #type}) -> optional Sema_Error
+    is
+        const Inst_Src := Util::Find_Tree_Source(T);
+        const Mut_Err := Check_Const_Field(T, Inst_Src);
+        if Mut_Err not null then
+            return Mut_Err;
+        end if
+
+        if M.Is_Top_Level then
+            return (Kind => #inst_top_level, Source => Inst_Src);
+        end if
+
+        // Get inst decl
+        const Inst_Decl := Decl_Of(T);
+
+        // Mapping of domains in new entity to domains in current
+        // entity
+        var Dom_Args : IR::Instance_Dom_Map := [];
+
+        // Iterate through target entity domain names
+        const Target_Domains := Keys(M.Domains);
+        var Next_Dom : Univ_String := First(Target_Domains);
+
+        // Iterate through instance actuals
+        const Inst_Actuals := Trees_Of_Actuals(SI);
+        for I in 1..|Inst_Actuals| forward loop
+            const Local_Arg_Src := Util::Find_Tree_Source(Inst_Actuals[I]);
+            const Local_Arg_Err := Reader::Read_Dom_Param(Inst_Actuals[I]);
+            if Is_Err(Local_Arg_Err) then
+                return Err(Local_Arg_Err);
+            end if
+
+            const Local_Dom := Ok(Local_Arg_Err);
+            const Target_Dom := M.Domains[Next_Dom];
+
+            if Local_Dom.Kind < Target_Dom.Kind then
+                return (Kind => #underqualified_dom,
+                    Source => Local_Arg_Src);
+            end if
+
+            Dom_Args |= (Target => Target_Dom, Local => Local_Dom);
+            Next_Dom := Next(Target_Domains, Next_Dom);
+        end loop
+
+        // Component arguments
+        var Expr_Args : IR::Expr_Map := [];
+
+        const Inst_Val_Tree := Nth_Operand(T, Tree::Obj_Decl_Value_Op);
+        const Inst_Call := Util::Get_Call_Operation(Inst_Val_Tree);
+        const Inst_Val := Util::Resolved(Inst_Val_Tree);
+
+        if Kind(Inst_Val) != #invocation or else
+            Id(Inst_Call) != Names::Functions::Run
+        then
+            return (Kind => #instance_not_call,
+                Source => Inst_Src);
+        end if
+
+        // Iterate through target components
+        const Target_Components := Keys(M.Inputs);
+        var Next_Comp : Univ_String := First(Target_Components);
+
+        for I in 2..Num_Operands(Inst_Val) forward loop
+            const Arg_Expr := Nth_Operand(Inst_Val, I);
+            const Arg_Err := Reader::Walk_Expr(Context(B), Arg_Expr);
+            if Is_Err(Arg_Err) then
+                return Err(Arg_Err);
+            end if
+
+            Expr_Args |= (Key => Next_Comp, Value => Ok(Arg_Err));
+            Next_Comp := Next(Target_Components, Next_Comp);
+        end loop
+
+        const Inst : IR::Instance := (
+            Name => Id(Inst_Decl), Inputs => Expr_Args,
+            Dom_Args => Dom_Args, Entity => M.Name,
+            Source => Inst_Src);
+        return Add_Inst(B, Inst);
+    end func Walk_Entity_Inst
+
     /// Walk object declarations. This includes registers, wires, and entity instances
     func Walk_Obj_Decl(var V : Validator; var B : Entity_Builder;
         T : Tree {Kind(T) == #obj_decl}) -> optional Sema_Error
@@ -147,7 +242,17 @@ class SailGate::Sema::Validator is
             end if
         else
             // Read entity instantiation
-            {*"NYI: entity reuse"* #false}
+            const Inst_Module := Associated_Module(SI);
+            const Inst_Type_Name := Util::Get_Decl_Name(Inst_Module);
+            if Inst_Type_Name in V.Pending_Entities then
+                if Inst_Type_Name == B.Name then
+                    return (Kind => #self_inst, Source => Tree_Source);
+                end if
+                return Walk_Entity_Inst(B,
+                    V.Pending_Entities[Inst_Type_Name].Builder, T, SI);
+            else
+                return (Kind => #invalid_rtl_type, Source => Tree_Source);
+            end if
         end if
     end func Walk_Obj_Decl
 
@@ -503,19 +608,9 @@ class SailGate::Sema::Validator is
             // Check for ref/var/optional field values
             // These types of declarations are not allowed
             // for entity fields
-            if Obj_Decl_Is_Ref(Comp_Tree) then
-                return (Kind => #ref_field_type,
-                    Source => Comp_Source);
-            end if
-
-            if Obj_Decl_Is_Var(Comp_Tree) then
-                return (Kind => #mutable_field,
-                    Source => Comp_Source);
-            end if
-
-            if Obj_Decl_Is_Optional(Comp_Tree) then
-                return (Kind => #optional_field,
-                    Source => Comp_Source);
+            const Mut_Err := Check_Const_Field(Comp_Tree, Comp_Source);
+            if Mut_Err not null then
+                return Mut_Err;
             end if
 
             // Check for initial value (not allowed for outputs)
@@ -547,7 +642,14 @@ class SailGate::Sema::Validator is
             end if
         end loop
 
-        if |Builder.Inputs| + Count_Seq_Domains(Builder) == 0 then
+        var Seq_Dom_Count := 0;
+        for each [Name => Dom] of Builder.Domains forward loop
+            if Dom.Kind != #async then
+                Seq_Dom_Count += 1;
+            end if
+        end loop
+
+        if |Builder.Inputs| + Seq_Dom_Count == 0 then
             return (Kind => #no_inputs, Source => Decl_Src);
         end if
 

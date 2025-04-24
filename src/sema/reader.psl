@@ -77,53 +77,6 @@ class SailGate::Sema::Reader is
             Source => Anno_Source));
     end func Read_Alignment
 
-    /// Reads domain out from type actual parameter. This is
-    /// effectively a wrapper around Dom_Obj and Dom_Param
-    func Read_Dom_Param(T : Tree) -> Domain_Result is
-        const Src := Util::Find_Tree_Source(T);
-        const Dom_Err := Domain_Result::Err((
-            Source => Src, Kind => #invalid_dom_arg));
-
-        if Kind(T) == #invocation then
-            const Invoc_Op := Util::Get_Call_Operation(T);
-            case Util::Get_Decl_Name(Invoc_Op) of
-                // Function used to check slice size in prelude
-                [Names::Functions::Force_Dom] =>
-                    const Left_Err := Read_Dom_Param(Nth_Operand(T, 2));
-                    if Is_Err(Left_Err) then
-                        return Left_Err;
-                    end if
-
-                    const Right_Err := Read_Dom_Param(Nth_Operand(T, 3));
-                    if Is_Err(Right_Err) then
-                        return Right_Err;
-                    end if
-
-                    const Right_Dom := Ok(Right_Err);
-                    const Left_Dom := Ok(Left_Err);
-                    return Domain_Result::Ok(Force_Dom(
-                        Left_Dom, Right_Dom));
-                [..] =>
-                    return Dom_Err;
-            end case
-        end if
-
-        const Sym := Util::Get_Symbol(T);
-        const Sym_Def := Definition(Sym);
-        const Def_Decl := Decl_Of(Sym_Def);
-
-        case Kind(Sym) of
-            [#object_sym_kind] =>
-                {Def_Decl not null and Kind(Def_Decl) == #object}
-                return Dom_Obj(Def_Decl);
-            [#param_sym_kind] =>
-                {Def_Decl not null and Kind(Def_Decl) == #object}
-                return Dom_Param(Def_Decl);
-        end case
-
-        return Dom_Err;
-    end func Read_Dom_Param
-
     ///                 EXPRESSION PARSING                 ///
     /// These functions are related to parsing expressions ///
     
@@ -489,6 +442,30 @@ class SailGate::Sema::Reader is
         return Expr_Result::Ok(Ident_Expr);
     end func Walk_Expr_Ident
 
+    /// Object access
+    func Walk_Expr_Selection(Ctx : Context; 
+        T : Tree {Kind(T) == #selection};
+        Type : IR::Type) -> Expr_Result
+    is
+        const Tree_Src := Util::Find_Tree_Source(T);
+
+        const Prefix := Nth_Operand(T, Tree::Selection_Prefix_Op);
+        const Selector := Nth_Operand(T, Tree::Selection_Selector_Op);
+
+        if Kind(Prefix) != #identifier or else
+            Kind(Selector) != #identifier
+        then
+            return Expr_Result::Err((Source => Tree_Src,
+                Kind => #invalid_construct));
+        end if
+
+        const Selector_Expr : IR::Inst_Access := (
+            Name => Identifier(Prefix),
+            Property => Identifier(Selector),
+            Type => Type, Source => Tree_Src);
+        return Expr_Result::Ok(Selector_Expr);
+    end func Walk_Expr_Selection
+
     /// Walks call to Range::Slice
     func Walk_Slice_Invoc(Ctx : Context; T : Tree; Type : IR::Type) -> Expr_Result is
         const Syn_Err := Expr_Result::Err((
@@ -736,6 +713,51 @@ exports
             Kind => Dom_Kind, Decl => D));
     end func Dom_Obj
 
+    func Read_Dom_Param(T : Tree) -> Domain_Result is
+        const Src := Util::Find_Tree_Source(T);
+        const Dom_Err := Domain_Result::Err((
+            Source => Src, Kind => #invalid_dom_arg));
+
+        if Kind(T) == #invocation then
+            const Invoc_Op := Util::Get_Call_Operation(T);
+            case Util::Get_Decl_Name(Invoc_Op) of
+                // Function used to check slice size in prelude
+                [Names::Functions::Force_Dom] =>
+                    const Left_Err := Read_Dom_Param(Nth_Operand(T, 2));
+                    if Is_Err(Left_Err) then
+                        return Left_Err;
+                    end if
+
+                    const Right_Err := Read_Dom_Param(Nth_Operand(T, 3));
+                    if Is_Err(Right_Err) then
+                        return Right_Err;
+                    end if
+
+                    const Right_Dom := Ok(Right_Err);
+                    const Left_Dom := Ok(Left_Err);
+                    return Domain_Result::Ok(Force_Dom(
+                        Left_Dom, Right_Dom));
+                [..] =>
+                    return Dom_Err;
+            end case
+        end if
+
+        const Sym := Util::Get_Symbol(T);
+        const Sym_Def := Definition(Sym);
+        const Def_Decl := Decl_Of(Sym_Def);
+
+        case Kind(Sym) of
+            [#object_sym_kind] =>
+                {Def_Decl not null and Kind(Def_Decl) == #object}
+                return Dom_Obj(Def_Decl);
+            [#param_sym_kind] =>
+                {Def_Decl not null and Kind(Def_Decl) == #object}
+                return Dom_Param(Def_Decl);
+        end case
+
+        return Dom_Err;
+    end func Read_Dom_Param
+
     func Type_Is_Rtl(D : Decl) -> Boolean is
         const Type_Mod := Associated_Module(D);
         const Type_Mod_Name := Util::Get_Decl_Name(Type_Mod);
@@ -937,6 +959,8 @@ exports
                 return Walk_Expr_Unary(Ctx, T, Expr_Type);
             [#binary] =>
                 return Walk_Expr_Binary(Ctx, T, Expr_Type);
+            [#selection] =>
+                return Walk_Expr_Selection(Ctx, T, Expr_Type);
             [#identifier] =>
                 return Walk_Expr_Ident(Ctx, T, Expr_Type);
         end case

@@ -10,17 +10,13 @@ class SailGate::Sema::IR_Builder<> is
 exports
     class Entity_Builder is
         const Source : IR::Pos;
-        var Is_Top_Level : Boolean := #true;
         var Output_Values : IR::Expr_Map := [];
         var Registers : IR::Reg_Def := [];
-        var Components : Vector<IR::Component> := [];
-        var Domains : IR::Domain_Map := [];
+        var Dependencies : Ordered_Set<Univ_String> := [];
         var Impl : Ordered_Map<Univ_String, IR::Block> := [];
         var Expl : IR::Processes := [];
         var Concurrent : IR::Concurrent_Defs := [];
         var Scope : IR::Entity_Scope := [];
-
-        var Sequential_Domains : Univ_Integer := 0;
 
         var Has_Return : Boolean := #false;
         var Is_Ready : Boolean := #false;
@@ -61,9 +57,6 @@ exports
         func Add_Clock_Param(var E : Entity_Builder; Dom : IR::Domain) is
             E.Domains |= (Key => Dom.Name, Value => Dom);
             Add_Scope_Item(E, Dom.Name, #domain);
-            if Dom.Kind != #async then
-                E.Sequential_Domains += 1;
-            end if
             // If the entity has a type param, we know it can't be top level
             E.Is_Top_Level := #false;
         end func Add_Clock_Param
@@ -73,16 +66,9 @@ exports
                 const Dom_Src := Decl_Source_Pos(Dom.Decl);
                 return (Kind => #dom_obj_in_abstract, Source => Dom_Src);
             end if
-            if Dom.Kind != #async then
-                E.Sequential_Domains += 1;
-            end if
             E.Domains |= (Key => Dom.Name, Value => Dom);
             Add_Scope_Item(E, Dom.Name, #domain);
         end func Add_Clock_Obj
-
-        func Count_Seq_Domains(E : Entity_Builder) -> Univ_Integer is
-            return E.Sequential_Domains;
-        end func Count_Seq_Domains
 
         func Context(E : Entity_Builder) -> Reader::Context is
             return (Enclosing_Module => E.Name);
@@ -159,6 +145,18 @@ exports
             E.Concurrent |= W;
         end func Add_Wire
 
+        func Add_Inst(var E : Entity_Builder;
+            I : IR::Instance) -> optional Sema_Error
+        is
+            if E.Has_Return then
+                return (Kind => #item_after_return,
+                    Source => I.Source);
+            end if
+            Add_Scope_Item(E, I.Name, #instance);
+            E.Concurrent |= I;
+            E.Dependencies |= I.Entity;
+        end func Add_Inst
+
         func Output_Assign(var E : Entity_Builder; Name : Univ_String;
             Val : IR::Expression+) -> optional Sema_Error
         is
@@ -191,7 +189,7 @@ exports
             const Finished : IR::Entity := (Name => E.Name,
                 Is_Top_Level => E.Is_Top_Level, Inputs => E.Inputs,
                 Outputs => E.Outputs, Output_Values => E.Output_Values,
-                Registers => E.Registers, Components => E.Components,
+                Registers => E.Registers, Dependencies => E.Dependencies,
                 Domains => E.Domains, Scope => E.Scope, Impl => Impl,
                 Concurrent => E.Concurrent, Test_Bench => null);
             return Finished;

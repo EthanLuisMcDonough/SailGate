@@ -64,6 +64,10 @@ exports
             [#negative_shift] => Println("Shift value can't be negative");
             [#no_inputs] => Println("No inputs found in entity");
             [#no_outputs] => Println("No outputs found in entity");
+            [#self_inst] => Println("Can't instantiate module inside itself");
+            [#underqualified_dom] => Println("Underqualified clock domain supplied to component");
+            [#instance_not_call] => Println("Instance must be a call to \"Run\"");
+            [#inst_top_level] => Println("Can't instantiate top level entity");
         end case
     end func Dump
 end class SailGate::Sema::Sema_Error

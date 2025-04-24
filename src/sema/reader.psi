@@ -17,6 +17,10 @@ interface SailGate::Sema::Reader<> is
     /// Reads clock domain from object declaration
     func Dom_Obj(D : Decl {Kind(D) == #object}) -> Domain_Result;
 
+    /// Reads domain out from type actual parameter. This is
+    /// effectively a wrapper around Dom_Obj and Dom_Param
+    func Read_Dom_Param(T : Tree) -> Domain_Result;
+
     /// Checks if type is an RTL type
     func Type_Is_Rtl(D : Decl {Kind(D) == #type}) -> Boolean;
 

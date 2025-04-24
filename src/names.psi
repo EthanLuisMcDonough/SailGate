@@ -37,12 +37,13 @@ interface SailGate::Names<> is
     end interface Ops
 
     interface Functions<> is
+        const Run := "Run";
+
         // Annotation functions
         const Clock := Prefix | "Clock";
         const Reset := Prefix | "Reset";
         const Clk_Rst_En := Prefix | "Clk_Rst_En";
         const Align := Prefix | "Align";
-
 
         // Conversion function names
         const Logic_Vec := "Logic_Vec";

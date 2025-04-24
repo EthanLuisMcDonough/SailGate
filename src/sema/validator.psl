@@ -440,14 +440,12 @@ class SailGate::Sema::Validator is
             return (Kind => #invalid_return_value, Source => RV_Src);
         end if
 
-        // Get names of outputs
         {|B.Outputs| == Num_Operands(RV_Resolved)}
-        const Output_Names := Keys(B.Outputs);
-        var Key : Univ_String := First(Output_Names);
 
         // Loop through return key/values
         for I in 1..Num_Operands(RV_Resolved) forward loop
             const Value_Tree := Nth_Operand(RV_Resolved, I);
+            const Key := Output_At_Index(B, I);
             const VT_Err := Reader::Walk_Expr(Context(B), Value_Tree);
             if Is_Err(VT_Err) then
                 return Err(VT_Err);
@@ -458,9 +456,6 @@ class SailGate::Sema::Validator is
             if Output_Err not null then
                 return Output_Err;
             end if
-
-            // Get next output field
-            Key := Next(Output_Names, Key);
         end loop
 
         Set_Returned(B);
@@ -636,7 +631,8 @@ class SailGate::Sema::Validator is
             end if
 
             // Add output to entity
-            const Output_Err := Add_Output(Builder, Name, Comp_Type);
+            const Output_Err := Add_Output(Builder, Name, Comp_Type,
+                Component_Index(Component));
             if Output_Err not null then
                 return Output_Err;
             end if

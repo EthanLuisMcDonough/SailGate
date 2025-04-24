@@ -799,9 +799,9 @@ exports
                 ref Input => Get_Inputs(C)[I];
                 const Name := Get_Name(Input);
                 const Input_Field_Ok := Name in M;
+                {*"Missing input field"* Input_Field_Ok}
                 const Input_Not_Null := M[Name] not null;
                 const Types_Match := Get_Type(M[Name]) == Get_Type(Input);
-                {*"Missing input field"* Input_Field_Ok}
                 {*"Input must be non-null"* Input_Not_Null}
                 {*"Input must be readable"* Readable(M[Name])}
                 {*"Mismatched type"* Types_Match}

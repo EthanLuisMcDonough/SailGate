@@ -17,6 +17,7 @@ exports
         var Expl : IR::Processes := [];
         var Concurrent : IR::Concurrent_Defs := [];
         var Scope : IR::Entity_Scope := [];
+        var Comp_Indices : Map<Univ_Integer, Univ_String> := [];
 
         var Has_Return : Boolean := #false;
         var Is_Ready : Boolean := #false;
@@ -86,14 +87,21 @@ exports
         end func Add_Input
 
         func Add_Output(var E : Entity_Builder; Name : Univ_String;
-            Type : IR::Type) -> optional Sema_Error
+            Type : IR::Type; Comp_Index : Univ_Integer) -> optional Sema_Error
         is
             const Check_Err := Check_Field_Type(E, Type);
             if Check_Err not null then
                 return Check_Err;
             end if
             E.Outputs |= (Key => Name, Value => Type);
+            E.Comp_Indices |= (Key => Comp_Index, Value => Name);
         end func Add_Output
+
+        func Output_At_Index(E : Entity_Builder;
+            Comp_Index : Univ_Integer) -> Univ_String
+        is
+            return E.Comp_Indices[Comp_Index]
+        end func Output_At_Index
 
         func Add_Stmt(var E : Entity_Builder; Stmt : IR::Statement+)
             -> optional Sema_Error

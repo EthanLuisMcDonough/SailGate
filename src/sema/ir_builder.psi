@@ -46,8 +46,11 @@ interface SailGate::Sema::IR_Builder<> is
 
         /// Adds entity out port
         func Add_Output(var E : Entity_Builder;
-            Name : Univ_String;
-            Type : IR::Type) -> optional Sema_Error;
+            Name : Univ_String; Type : IR::Type;
+            Comp_Index : Univ_Integer) -> optional Sema_Error;
+
+        func Output_At_Index(E : Entity_Builder;
+            Comp_Index : Univ_Integer) -> Univ_String;
 
         /// Adds entity register
         func Add_Register(var E : Entity_Builder;

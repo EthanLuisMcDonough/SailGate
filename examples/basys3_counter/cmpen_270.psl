@@ -1,0 +1,139 @@
+import SailGate::Prelude::*, *;
+
+interface Top_Level<> is
+    const Main_Dom := Domain::Clock(#a);
+
+    const Led : Vec<16, Main_Dom>;
+    const Segment : Vec<7, Main_Dom>;
+    const Anode : Vec<4, Main_Dom>;
+
+    func Run(Switch : Vec<16, Main_Dom>) -> Top_Level;
+end interface Top_Level
+
+interface Mux_4<Dom : Domain> is
+    const Output : Vec<4, Dom>;
+
+    func Run(Select : Vec<2, Dom>;
+        A : Vec<4, Dom>; B : Vec<4, Dom>;
+        C : Vec<4, Dom>; D : Vec<4, Dom>) -> Mux_4;
+end interface Mux_4
+
+interface Decoder_2_To_4_ALO<D : Domain> is
+    const Y : Vec<4, D>;
+    func Run(A : Vec<2, D>) -> Decoder_2_To_4_ALO;
+end interface Decoder_2_To_4_ALO
+
+interface Hex_To_7_Dec<Dom : Domain> is
+    {Align(#up)} const Segment : Vec<7, Dom>;
+    func Run(Hex : Vec<4, Dom>) -> Hex_To_7_Dec;
+end interface Hex_To_7_Dec
+
+class Decoder_2_To_4_ALO is
+exports
+    func Run(A : Vec<2, D>) -> Decoder_2_To_4_ALO is
+        var V : Vec<4, D> := 0;
+        V[3] := not A[0] or not A[1];
+        V[2] := A[0] or not A[1];
+        V[1] := not A[0] or A[1];
+        V[0] := A[0] or A[1];
+        return (Y => V);
+    end func Run
+end class Decoder_2_To_4_ALO
+
+class Hex_To_7_Dec is
+exports
+    func Run(Hex : Vec<4, Dom>) -> Hex_To_7_Dec is
+        var Dec : Vec<7, Dom> := 0;
+
+        const A := Hex[3];
+        const B := Hex[2];
+        const C := Hex[1];
+        const D := Hex[0];
+
+        const M0 := not A and not B and not C and not D;
+        const M1 := not A and not B and not C and     D;
+        const M2 := not A and not B and     C and not D;
+        const M3 := not A and not B and     C and     D;
+        const M4 := not A and     B and not C and not D;
+        const M5 := not A and     B and not C and     D;
+        const M6 := not A and     B and     C and not D;
+        const M7 := not A and     B and     C and     D;
+        const M8 := A and not B and not C and not D;
+        const M9 := A and not B and not C and     D;
+        const M10 := A and not B and     C and not D;
+        const M11 := A and not B and     C and     D;
+        const M12 := A and     B and not C and not D;
+        const M13 := A and     B and not C and     D;
+        const M14 := A and     B and     C and not D;
+        const M15 := A and     B and     C and     D;
+
+        const Seg0 := M1 or M4 or M11 or M13;
+        const Seg1 := M5 or M6 or M11 or M12 or M14 or M15;
+        const Seg2 := M2 or M12 or M14 or M15;
+        const Seg3 := M1 or M4 or M7 or M9 or M10 or M15;
+        const Seg4 := M1 or M3 or M4 or M5 or M7 or M9;
+        const Seg5 := M1 or M2 or M3 or M7 or M13;
+        const Seg6 := M0 or M1 or M7 or M12;
+
+        return (Segment => Seg6 | Seg5 | Seg4 | Seg3 |
+            Seg2 | Seg1 | Seg0);
+    end func Run
+end class Hex_To_7_Dec
+
+class Mux_4 is
+exports
+    func Run(Select : Vec<2, Dom>;
+        A : Vec<4, Dom>; B : Vec<4, Dom>;
+        C : Vec<4, Dom>; D : Vec<4, Dom>) -> Mux_4
+    is
+        var Out_Val : Vec<4, Dom> := 0;
+
+        case Switch(Select) of
+            ["00"] =>
+                Out_Val := A;
+            ["01"] =>
+                Out_Val := B;
+            ["10"] =>
+                Out_Val := C;
+            ["11"] =>
+                Out_Val := D;
+        end case
+
+        return (Output => Out_Val);
+    end func Run
+end class Mux_4
+
+class Top_Level is
+    type Mux_Comp is Mux_4<Main_Dom>;
+    type Hex_Comp is Hex_To_7_Dec<Main_Dom>;
+    type Anode_Comp is Decoder_2_To_4_ALO<Main_Dom>;
+    type Byte is Vec<4, Main_Dom>;
+exports
+    func Run(Switch : Vec<16, Main_Dom>) -> Top_Level is
+    
+        var Counter : UVec<2, Main_Dom> := 0;
+        var Pulse_Counter : UVec<17, Main_Dom> := 0;
+
+        const Int1 : Byte := Range::<15, 12>::Slice(Switch);
+        const Int2 : Byte := Range::<11, 8>::Slice(Switch);
+        const Int3 : Byte := Range::<7, 4>::Slice(Switch);
+        const Int4 : Byte := Range::<3, 0>::Slice(Switch);
+
+        const Mux := Mux_Comp::Run(A => Int4, B => Int3, C => Int2,
+            D => Int1, Select => Logic_Vec(Counter));
+
+        const Seg_Decoder := Hex_Comp::Run(Hex => Mux.Output);
+
+        const Anode_Decoder := Anode_Comp::Run(A => Logic_Vec(Counter));
+
+        if Pulse_Counter > 99999 then
+            Counter := Counter + 1;
+            Pulse_Counter := 0;
+        else
+            Pulse_Counter := Pulse_Counter + 1;
+        end if
+
+        return (Anode => Anode_Decoder.Y, Led => Switch,
+            Segment => Seg_Decoder.Segment);
+    end func Run
+end class Top_Level

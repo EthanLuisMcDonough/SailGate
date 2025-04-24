@@ -13,7 +13,7 @@ func Test() is
 
     // CHECK: A : in STD_LOGIC
     Println(Gen_Var(A));
-    // CHECK: B : in STD_LOGIC_VEC(3 downto 0)
+    // CHECK: B : in STD_LOGIC_VECTOR(3 downto 0)
     Println(Gen_Var(B));
     // CHECK: C : out SIGNED(5 to 7)
     Println(Gen_Var(C));

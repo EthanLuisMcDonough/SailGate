@@ -16,6 +16,6 @@ func Test() is
     Println(Gen_Var(A));
     // CHECK: signal B: STD_LOGIC := '1'
     Println(Gen_Var(B));
-    // CHECK: signal C: STD_LOGIC_VEC(3 downto 0) := "1001"
+    // CHECK: signal C: STD_LOGIC_VECTOR(3 downto 0) := "1001"
     Println(Gen_Var(C));
 end func Test

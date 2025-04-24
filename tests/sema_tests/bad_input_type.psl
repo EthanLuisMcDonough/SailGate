@@ -8,7 +8,7 @@ import SailGate::Prelude::*;
 interface Test<> is
     var C : Logic;
     // CHECK: 12:36
-    // CHECK: Invalid field type. Field must be a realized RTL type
+    // CHECK: Invalid type. Expected RTL type (Logic, Vec, UVec, IVec)
     func Run(A : Logic; B : Logic; C : Univ_Integer) -> Test;
 end interface Test
 

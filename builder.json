@@ -2,8 +2,9 @@
     "prefix": "./src",
     "headers": [
         "sailgate.psi",
+        "prelude.psi",
         "builder/builder.psi",
         "builder/vhdl.psi"
     ],
-    "sources": ["builder/*.psl"]
+    "sources": ["prelude.psl", "builder/*.psl"]
 }

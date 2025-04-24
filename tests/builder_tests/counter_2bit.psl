@@ -1,0 +1,44 @@
+// RUN: %sailgate_builder
+// RUN: %sailgate_check
+
+import SailGate::Builder::VHDL::*;
+
+func Test() is
+    const Out_Type := Vector_Type::Create(#logic, 1..0);
+    const Internal_Type := Vector_Type::Create(#int, 1..0);
+    var Clk_Val := Port::In("D_clk", Logic_Type);
+    var Out_Val := Port::Out("o_Value", Out_Type);
+
+    var Val_Reg := Register::Create("reg_Counter", Internal_Type,
+        Literal::Vec("00", #int));
+
+    const Conv_Op := Vec_Conversion::Create(Ref(Val_Reg), #logic);
+    const Conv_Stmt := Assignment::Create(Ref(Out_Val), Conv_Op);
+
+    const Proc := Process::Create(null, [Ref(Clk_Val)], [
+        Assignment::Create(Ref(Val_Reg),
+            Binary::Create(#add, Ref(Val_Reg), Literal::Vec("01", #int))) ]);
+
+    var Counter_2bit := Entity::Create("Entity_Counter_2bit",
+        Ports => [Clk_Val, Out_Val],
+        Registers => [Val_Reg],
+        Async_Region => [Conv_Stmt],
+        Processes => [Proc]);
+
+    Println(Gen_Entity(Counter_2bit));
+
+    // CHECK: entity Entity_Counter_2bit is
+    // CHECK: port(D_Clk : in STD_LOGIC;
+    // CHECK:      O_Value : out STD_LOGIC_VECTOR(1 downto 0));
+    // CHECK: end entity;
+
+    // CHECK: architecture Entity_Counter_2bit_Behavior of Entity_Counter_2bit is
+    // CHECK: signal Reg_Counter: SIGNED(1 downto 0) := "00";
+    // CHECK: begin
+    // CHECK:     O_Value <= STD_LOGIC_VECTOR(Reg_Counter);
+    // CHECK:     process(D_Clk)
+    // CHECK:     begin
+    // CHECK:         Reg_Counter <= (Reg_Counter + "01");
+    // CHECK:     end process;
+    // CHECK: end architecture;
+end func Test

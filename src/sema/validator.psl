@@ -25,12 +25,12 @@ class SailGate::Sema::Validator is
     func Check_Const_Field(T : Tree {Kind(T) == #obj_decl};
         Src : IR::Pos) -> optional Sema_Error
     is
-        if Obj_Decl_Is_Ref(T) then
-            return (Kind => #ref_field_type, Source => Src);
-        end if
-
         if Obj_Decl_Is_Var(T) then
             return (Kind => #mutable_field, Source => Src);
+        end if
+
+        if Obj_Decl_Is_Ref(T) then
+            return (Kind => #ref_field_type, Source => Src);
         end if
 
         if Obj_Decl_Is_Optional(T) then

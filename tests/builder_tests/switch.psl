@@ -22,11 +22,11 @@ func Test() is
     Println(Gen_Stmt(S));
 
     // CHECK: case A & B is
-    // CHECK:     case "00" =>
+    // CHECK:     when "00" =>
     // CHECK:         C <= A;
-    // CHECK:     case "10" | "01" =>
+    // CHECK:     when "10" | "01" =>
     // CHECK:         C <= B;
-    // CHECK:     others =>
+    // CHECK:     when others =>
     // CHECK:         C <= '1';
     // CHECK: end case;
 end func Test

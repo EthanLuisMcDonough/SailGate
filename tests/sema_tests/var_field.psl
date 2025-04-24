@@ -7,14 +7,14 @@ import SailGate::Prelude::*;
 
 interface Test<> is
     var C : Logic;
-    // CHECK: 12:29
+    // CHECK: 9:9
     // CHECK: Invalid field mutability. Field must be constant
-    func Run(A : Logic; var B : Logic) -> Test;
+    func Run(A : Logic; B : Logic) -> Test;
 end interface Test
 
 class Test is
 exports
-    func Run(A : Logic; var B : Logic) -> Test is
+    func Run(A : Logic; B : Logic) -> Test is
         return (C => A and B);
     end func Run
 end class Test

@@ -86,7 +86,6 @@ exports
                 return Check_Err;
             end if
             E.Inputs |= (Key => Name, Value => Type);
-            //E.P_C := E.P_C + 1;
             E.Param_Indices |= (Key => Comp_Index, Value => Name);
         end func Add_Input
 
@@ -121,6 +120,7 @@ exports
                     Source => Get_Source(Stmt));
             end if
             const Stmt_Dom := Get_Dom(Stmt);
+            Println("Dom: " | To_String(Stmt_Dom));
             if not Is_Domain_Ok(E, Stmt_Dom) then
                 return (Kind => #domain_out_of_scope,
                     Source => Get_Source(Stmt));
@@ -233,7 +233,7 @@ exports
         // Only accept async statements and statements that match
         // this construct's clock domain exactly
         func Dom_Is_Ok(I : If_Builder; D : IR::Domain) -> Boolean is
-            return I.Dom == D or else D.Kind == #async;
+            return I.Dom == D or else Is_Canon_Async(D);
         end func Dom_Is_Ok
     exports
         func Create(Ctx : Reader::Context; Init_Cond : IR::Expression+;
@@ -308,7 +308,7 @@ exports
         var Default : optional IR::Block := null;
 
         func Dom_Is_Ok(C : Case_Builder; D : IR::Domain) -> Boolean is
-            return Get_Type(C.Expr).Dom == D or else D.Kind == #async;
+            return Get_Type(C.Expr).Dom == D or else Is_Canon_Async(D);
         end func Dom_Is_Ok
     exports
         func Create(Ctx : Reader::Context; Expr : IR::Expression+;

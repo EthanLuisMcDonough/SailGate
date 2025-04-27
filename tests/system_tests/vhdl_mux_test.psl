@@ -37,11 +37,11 @@ exports
 end class Mux_4
 
 // CHECK: entity Entity_Mux_4 is
-// CHECK:     port(I_A : in STD_LOGIC_VECTOR(3 downto 0);
+// CHECK:     port(I_Select : in STD_LOGIC_VECTOR(1 downto 0);
+// CHECK:          I_A : in STD_LOGIC_VECTOR(3 downto 0);
 // CHECK:          I_B : in STD_LOGIC_VECTOR(3 downto 0);
 // CHECK:          I_C : in STD_LOGIC_VECTOR(3 downto 0);
 // CHECK:          I_D : in STD_LOGIC_VECTOR(3 downto 0);
-// CHECK:          I_Select : in STD_LOGIC_VECTOR(1 downto 0);
 // CHECK:          O_Output : out STD_LOGIC_VECTOR(3 downto 0));
 // CHECK: end entity;
 

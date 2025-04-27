@@ -13,20 +13,18 @@ interface SailGate::Sema::Extractor<> is
 
         const Name : Univ_String;
 
-        type Decl_Map is Ordered_Map<Univ_String, Decl>;
-        type Op_Map is Ordered_Map<Univ_String, Module_Op>;
-        type Mod_Map is Ordered_Map<Univ_String, Module_Desc>;
+        type Op_Map is Sequenced_Map<Univ_String, Module_Op>;
 
         const Decl : Decl;
         const Decl_Type : Decl;
         const Type_Desc : optional Type_Descriptor;
 
-        const Objects : Decl_Map;
-        const Params : Decl_Map;
-        const Components : Decl_Map;
-        const Types : Decl_Map;
+        const Objects : Vector<Decl>;
+        const Params : Vector<Decl>;
+        const Components : Vector<Decl>;
+        const Types : Vector<Decl>;
         const Operations : Op_Map;
-        const Modules : Mod_Map;
+        const Modules : Vector<Module_Desc>;
 
         func Create(D : Decl {Kind(D) == #module}) -> Module_Desc;
         func Dump(M : Module_Desc);

@@ -11,16 +11,12 @@ exports
     class Entity_Builder is
         const Source : IR::Pos;
         var Output_Values : IR::Expr_Map := [];
-        var Registers : IR::Reg_Def := [];
+        var Registers : Vector<IR::Register> := [];
         var Dependencies : Ordered_Set<Univ_String> := [];
-        var Impl : Ordered_Map<Univ_String, IR::Block> := [];
+        var Impl : Sequenced_Map<IR::Domain, IR::Block> := [];
         var Expl : IR::Processes := [];
         var Concurrent : IR::Concurrent_Defs := [];
         var Scope : IR::Entity_Scope := [];
-        // TODO refactor this. This is a band aid
-        var Comp_Indices : Map<Univ_Integer, Univ_String> := [];
-        var Param_Indices : Map<Univ_Integer, Univ_String> := [];
-
         var Has_Return : Boolean := #false;
         var Is_Ready : Boolean := #false;
 
@@ -46,10 +42,8 @@ exports
         func Is_Domain_Ok(E : Entity_Builder; Dom : IR::Domain) -> Boolean is
             if Is_Canon_Async(Dom) then
                 return #true;
-            elsif Dom.Name in E.Domains then
-                return Dom == E.Domains[Dom.Name];
             else
-                return #false;
+                return Dom in E.Domains;
             end if
         end func Is_Domain_Ok
     exports
@@ -58,7 +52,7 @@ exports
         end func Create
 
         func Add_Clock_Param(var E : Entity_Builder; Dom : IR::Domain) is
-            E.Domains |= (Key => Dom.Name, Value => Dom);
+            E.Domains |= Dom;
             Add_Scope_Item(E, Dom.Name, #domain);
             // If the entity has a type param, we know it can't be top level
             E.Is_Top_Level := #false;
@@ -69,7 +63,7 @@ exports
                 const Dom_Src := Decl_Source_Pos(Dom.Decl);
                 return (Kind => #dom_obj_in_abstract, Source => Dom_Src);
             end if
-            E.Domains |= (Key => Dom.Name, Value => Dom);
+            E.Domains |= Dom;
             Add_Scope_Item(E, Dom.Name, #domain);
         end func Add_Clock_Obj
 
@@ -78,7 +72,7 @@ exports
         end func Context
 
         func Add_Input(var E : Entity_Builder; Name : Univ_String;
-            Type : IR::Type; Comp_Index : Univ_Integer) -> optional Sema_Error
+            Type : IR::Type) -> optional Sema_Error
         is
             Add_Scope_Item(E, Name, #input);
             const Check_Err := Check_Field_Type(E, Type);
@@ -86,31 +80,17 @@ exports
                 return Check_Err;
             end if
             E.Inputs |= (Key => Name, Value => Type);
-            E.Param_Indices |= (Key => Comp_Index, Value => Name);
         end func Add_Input
 
-        func Input_At_Index(E : Entity_Builder;
-            Comp_Index : Univ_Integer) -> Univ_String
-        is
-            return E.Param_Indices[Comp_Index];
-        end func Input_At_Index
-
         func Add_Output(var E : Entity_Builder; Name : Univ_String;
-            Type : IR::Type; Comp_Index : Univ_Integer) -> optional Sema_Error
+            Type : IR::Type) -> optional Sema_Error
         is
             const Check_Err := Check_Field_Type(E, Type);
             if Check_Err not null then
                 return Check_Err;
             end if
             E.Outputs |= (Key => Name, Value => Type);
-            E.Comp_Indices |= (Key => Comp_Index, Value => Name);
         end func Add_Output
-
-        func Output_At_Index(E : Entity_Builder;
-            Comp_Index : Univ_Integer) -> Univ_String
-        is
-            return E.Comp_Indices[Comp_Index];
-        end func Output_At_Index
 
         func Add_Stmt(var E : Entity_Builder; Stmt : IR::Statement+)
             -> optional Sema_Error
@@ -125,10 +105,10 @@ exports
                     Source => Get_Source(Stmt));
             end if
 
-            if Stmt_Dom.Name not in E.Impl then
-                E.Impl |= (Key => Stmt_Dom.Name, Value => [Stmt]);
+            if Stmt_Dom not in E.Impl then
+                E.Impl |= (Key => Stmt_Dom, Value => [Stmt]);
             else
-                E.Impl[Stmt_Dom.Name] |= Stmt;
+                E.Impl[Stmt_Dom] |= Stmt;
             end if
         end func Add_Stmt
 
@@ -144,7 +124,7 @@ exports
             if Check_Err not null then
                 return Check_Err;
             end if
-            E.Registers |= (Key => Reg.Name, Value => Reg);
+            E.Registers |= Reg;
         end func Add_Register
 
         func Add_Wire(var E : Entity_Builder; W : IR::Wire)
@@ -196,11 +176,11 @@ exports
 
         func Build(E : Entity_Builder) -> IR::Entity is
             {E.Is_Ready}
-            var Impl : IR::Implicit_Processes := [];
-            for each [Dom_Name => Block] of E.Impl forward loop
+            var Impl : Vector<IR::Dom_Process> := [];
+            for each Domain of Keys(E.Impl) forward loop
                 const Proc : IR::Dom_Process := (
-                    Dom => E.Domains[Dom_Name], Body => Block);
-                Impl |= (Key => Dom_Name, Value => Proc);
+                    Dom => Domain, Body => E.Impl[Domain]);
+                Impl |= Proc;
             end loop
 
             const Finished : IR::Entity := (Name => E.Name,

@@ -193,9 +193,10 @@ class SailGate::Sema::Validator is
         end if
 
         // Iterate through target components
-
+        var M_Inputs := Keys(M.Inputs);
         for I in 2..Num_Operands(Inst_Val) forward loop
-            const Next_Comp := Input_At_Index(M, I);
+            const Ind : Univ_Integer := [[I - 1]];
+            const Next_Comp := M_Inputs[Ind];
             const Arg_Expr := Nth_Operand(Inst_Val, I);
             const Arg_Err := Reader::Walk_Expr(Context(B), Arg_Expr);
             if Is_Err(Arg_Err) then
@@ -442,9 +443,10 @@ class SailGate::Sema::Validator is
         {|B.Outputs| == Num_Operands(RV_Resolved)}
 
         // Loop through return key/values
+        const B_Outputs := Keys(B.Outputs)
         for I in 1..Num_Operands(RV_Resolved) forward loop
             const Value_Tree := Nth_Operand(RV_Resolved, I);
-            const Key := Output_At_Index(B, I);
+            const Key := B_Outputs[[[I]]];
             const VT_Err := Reader::Walk_Expr(Context(B), Value_Tree);
             if Is_Err(VT_Err) then
                 return Err(VT_Err);
@@ -502,13 +504,15 @@ class SailGate::Sema::Validator is
         const Decl_Src := Decl_Source_Pos(D.Decl);
 
         // Get entity "Run" routine
-        if |D.Operations| != 1 or else "Run" not in D.Operations then
+        if |D.Operations| != 1 or else
+            Names::Functions::Run not in D.Operations
+        then
             return (Kind => #no_run_fn, Source => Decl_Src);
         end if
-        const Run_Op := D.Operations["Run"];
+        const Run_Op := D.Operations[Names::Functions::Run];
 
         // Read parameter clock domain arguments
-        for each [Name => Domain_Param] of D.Params forward loop
+        for each Domain_Param of D.Params forward loop
             const R := Reader::Dom_Param(Domain_Param);
             if Is_Err(R) then
                 return Err(R);
@@ -517,7 +521,7 @@ class SailGate::Sema::Validator is
         end loop
 
         // Read top level entity domains 
-        for each [Name => Domain_Obj] of D.Objects forward loop
+        for each Domain_Obj of D.Objects forward loop
             const Obj_Src := Decl_Source_Pos(Domain_Obj);
             const Obj_Err := Reader::Dom_Obj(Domain_Obj);
             if Is_Err(Obj_Err) then
@@ -585,7 +589,7 @@ class SailGate::Sema::Validator is
                 end if
 
                 // Add input
-                const Input_Err := Add_Input(Builder, Param_Name, Param_Type, I);
+                const Input_Err := Add_Input(Builder, Param_Name, Param_Type);
                 if Input_Err not null then
                     return Input_Err;
                 end if
@@ -593,7 +597,8 @@ class SailGate::Sema::Validator is
         end loop
 
         // Process entity outputs (entity module fields)
-        for each [Name => Component] of D.Components forward loop
+        for each Component of D.Components forward loop
+            const Name := Id(Component);
             const Comp_Tree := Tree_Of(Component);
             const Comp_Source := Decl_Source_Pos(Component);
             const SI := Sem_Info(Comp_Tree);
@@ -630,8 +635,7 @@ class SailGate::Sema::Validator is
             end if
 
             // Add output to entity
-            const Output_Err := Add_Output(Builder, Name, Comp_Type,
-                Component_Index(Component));
+            const Output_Err := Add_Output(Builder, Name, Comp_Type);
             if Output_Err not null then
                 return Output_Err;
             end if
@@ -709,12 +713,14 @@ exports
         for each [Name => Rep] of V.Entities loop
             Println("=== ENTITY " | Name | " ===");
             Println("Inputs: ");
-            for each [Input_Name => Input_Type] of Rep.Inputs loop
+            for each Input_Name of Keys(Rep.Inputs) loop
+                ref Input_Type => Rep.Inputs[Input_Name];
                 Println(" - " | Input_Name | " : " | To_String(Input_Type));
             end loop
             Println("Outputs: ");
-            for each [Input_Name => Input_Type] of Rep.Outputs loop
-                Println(" - " | Input_Name | " : " | To_String(Input_Type));
+            for each Output_Name of Keys(Rep.Outputs) loop
+                ref Output_Type => Rep.Outputs[Output_Name];
+                Println(" - " | Output_Name | " : " | To_String(Output_Type));
             end loop
         end loop
     end func Dump

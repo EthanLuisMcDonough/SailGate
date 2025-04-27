@@ -23,7 +23,7 @@ interface SailGate::Sema::IR_Builder<> is
         const Name : Univ_String;
         var Inputs : IR::Port_Def := [];
         var Outputs : IR::Port_Def := [];
-        var Domains : IR::Domain_Map := [];
+        var Domains : IR::Domain_Set := [];
         var Is_Top_Level : Boolean := #true;
 
         func Create(Name : Univ_String; Source : IR::Pos) -> Entity_Builder;
@@ -41,19 +41,11 @@ interface SailGate::Sema::IR_Builder<> is
 
         /// Adds entity in port
         func Add_Input(var E : Entity_Builder;
-            Name : Univ_String; Type : IR::Type;
-            Comp_Index : Univ_Integer) -> optional Sema_Error;
-
-        func Input_At_Index(E : Entity_Builder;
-            Comp_Index : Univ_Integer) -> Univ_String;
+            Name : Univ_String; Type : IR::Type) -> optional Sema_Error;
 
         /// Adds entity out port
         func Add_Output(var E : Entity_Builder;
-            Name : Univ_String; Type : IR::Type;
-            Comp_Index : Univ_Integer) -> optional Sema_Error;
-
-        func Output_At_Index(E : Entity_Builder;
-            Comp_Index : Univ_Integer) -> Univ_String;
+            Name : Univ_String; Type : IR::Type) -> optional Sema_Error;
 
         /// Adds entity register
         func Add_Register(var E : Entity_Builder;

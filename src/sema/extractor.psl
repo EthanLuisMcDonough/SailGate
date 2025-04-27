@@ -75,24 +75,24 @@ exports
                 ", tree: " | Kind(Tree_Of(D)) | ")");
         end func Print_Decl_Item
 
-        func Print_Decl_Map(M : Decl_Map) is     
-            if Is_Empty(M) then
+        func Print_Decl_List(M : Vector<Decl>) is     
+            if |M| == 0 then
                 Println("   [none]");
             else
-                for each [Name => D] of M forward loop
+                for each D of M forward loop
                     Print_Decl_Item(D);
                 end loop
             end if
-        end func Print_Decl_Map
+        end func Print_Decl_List
     exports
         func Create(D : Decl) -> Module_Desc is
             var D_Type : optional Decl := null;
-            var Objects : Decl_Map := [];
-            var Params : Decl_Map := [];
-            var Components : Decl_Map := [];
-            var Types : Decl_Map := [];
+            var Objects : Vector<Decl> := [];
+            var Params : Vector<Decl> := [];
+            var Components : Vector<Decl> := [];
+            var Types : Vector<Decl> := [];
             var Operations : Op_Map := [];
-            var Modules : Mod_Map := [];
+            var Modules : Vector<Module_Desc> := [];
 
             const DR := Decl_Region(D);
             for I in 1..Num_Items(DR) forward loop
@@ -100,26 +100,24 @@ exports
                 const Decl_Name := Id(Decl_Item);
                 const Decl_Tree := Tree_Of(Decl_Item);
 
-                const Map_Val : Decl_Map::Pair := (Key => Decl_Name, Value => Decl_Item);
-
                 if Kind(Decl_Tree) == #param_decl then
-                    Params |= Map_Val;
+                    Params |= Decl_Item;
                 else
                     case Kind(Decl_Item) of
                         [#module] =>
-                            Modules |= (Key => Decl_Name, Value => Create(Decl_Item));
+                            Modules |= Create(Decl_Item);
                         [#type] =>
                             if D_Type is null then
                                 D_Type := Decl_Item;
                             else
-                                Types |= Map_Val;
+                                Types |= Decl_Item;
                             end if
                         [#object] =>
                             const Ind := Component_Index(Decl_Item);
                             if Ind is null then
-                                Objects |= Map_Val;
+                                Objects |= Decl_Item;
                             else
-                                Components |= Map_Val;
+                                Components |= Decl_Item;
                             end if
                         [#operation] =>
                             const R := Routine_For_Operation(Decl_Item);
@@ -145,23 +143,23 @@ exports
             Println(" - Has type desc: " | To_String(M.Type_Desc is null));
 
             Println(" - Parameters:");
-            Print_Decl_Map(M.Params);
+            Print_Decl_List(M.Params);
 
             Println(" - Objects:");
-            Print_Decl_Map(M.Objects);
+            Print_Decl_List(M.Objects);
 
             Println(" - Components:");
-            Print_Decl_Map(M.Components);
+            Print_Decl_List(M.Components);
 
             Println(" - Types:");
-            Print_Decl_Map(M.Types);
+            Print_Decl_List(M.Types);
 
             Println(" - Operations:");
             if Is_Empty(M.Operations) then
                 Println("   [none]");
             else
-                for each [Name => D] of M.Operations forward loop
-                    Print_Decl_Item(D.Decl);
+                for each Name of Keys(M.Operations) forward loop
+                    Print_Decl_Item(M.Operations[Name].Decl);
                 end loop
             end if
         end func Dump

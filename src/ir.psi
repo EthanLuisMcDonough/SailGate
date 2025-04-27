@@ -34,12 +34,14 @@ interface SailGate::IR<> is
     /// Our own version of domain for internal use
     /// The one in prelude is to be used by the end user, so
     /// it has some additional encapsulation we don't need here
-    interface Domain<> is
+    interface Domain<> implements Hashable<> is
         const Kind : Prelude::Domain_Kind;
         const Decl : Reflection::Decl;
         const Name : Univ_String;
 
         op "=?"(L, R : Domain) -> Ordering;
+        func Hash(D : Domain) -> Unsigned_64
+            is (Hash(Full_Name(D)));
 
         func Module(D : Domain) -> Univ_String;
         func Full_Name(D : Domain) -> Univ_String;
@@ -80,15 +82,14 @@ interface SailGate::IR<> is
         const Source : Pos;
     end interface Register
 
-    type Port_Def is Ordered_Map<Univ_String, Type>;
-    type Reg_Def is Ordered_Map<Univ_String, Register>;
+    type Port_Def is Sequenced_Map<Univ_String, Type>;
     type Scope_Item is Enum<[#input, #register, #wire, #instance, #domain]>;
 
-    type Entity_Scope is Ordered_Map<Univ_String, Scope_Item>;
-    type Domain_Map is Ordered_Map<Univ_String, Domain>;
+    type Entity_Scope is Sequenced_Map<Univ_String, Scope_Item>;
+    type Domain_Set is Sequenced_Set<Domain>;
 
     type Expr_List is Vector<Expression+>;
-    type Expr_Map is Ordered_Map<Univ_String, Expression+>;
+    type Expr_Map is Sequenced_Map<Univ_String, Expression+>;
 
     abstract interface Concurrent_Def<> is
     end interface Concurrent_Def
@@ -321,7 +322,6 @@ interface SailGate::IR<> is
         const Body : Block;
     end interface Empty_Process
 
-    type Implicit_Processes is Ordered_Map<Univ_String, Dom_Process>;
     type Processes is Vector<Process+>;
 
     interface Entity<> is
@@ -332,11 +332,11 @@ interface SailGate::IR<> is
         const Inputs : Port_Def;
         const Outputs : Port_Def;
         const Output_Values : Expr_Map;
-        const Registers : Reg_Def;
+        const Registers : Vector<Register>;
         const Dependencies : Ordered_Set<Univ_String>;
 
-        const Domains : Domain_Map;
-        const Impl : Implicit_Processes;
+        const Domains : Domain_Set;
+        const Impl : Vector<Dom_Process>;
         const Test_Bench : optional Empty_Process;
         const Concurrent : Concurrent_Defs;
     end interface Entity

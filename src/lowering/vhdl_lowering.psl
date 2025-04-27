@@ -375,9 +375,9 @@ class SailGate::Lowering::VHDL_Lowering is
     /// Generates a block of code that resets all registers tied to the specified domain
     func Gen_Reset_Block(E : IR::Entity; D : IR::Domain; S : Scope) -> VHDL::Block is
         var RB : VHDL::Block := [];
-        for each [Name => Reg] of E.Registers {Reg.Type.Dom == D} forward loop
+        for each Reg of E.Registers {Reg.Type.Dom == D} forward loop
             if Reg.Init not null then
-                const Reg_Var := S[Name];
+                const Reg_Var := S[Reg.Name];
                 RB |= VHDL::Assignment::Create(Reg_Var, Lower_Lit(Reg.Init));
             end if
         end loop
@@ -421,16 +421,16 @@ class SailGate::Lowering::VHDL_Lowering is
         end loop
 
         // Lower in ports
-        for each [Name => Type] of E.Inputs forward loop
+        for each Name of Keys(E.Inputs) forward loop
             const Port_Name := Convert_Name::Input(Name);
-            const Port_Type := Lower(Type);
+            const Port_Type := Lower(E.Inputs[Name]);
             In_Ports |= VHDL::Port::In(Port_Name, Port_Type);
         end loop
 
         // Lower out ports
-        for each [Name => Type] of E.Outputs forward loop
+        for each Name of Keys(E.Outputs) forward loop
             const Port_Name := Convert_Name::Output(Name);
-            const Port_Type := Lower(Type);
+            const Port_Type := Lower(E.Outputs[Name]);
             Out_Ports |= VHDL::Port::Out(Port_Name, Port_Type);
         end loop
 
@@ -486,33 +486,33 @@ class SailGate::Lowering::VHDL_Lowering is
         end loop
 
         // Lower in ports
-        for each [Name => Type] of E.Inputs forward loop
+        for each Name of Keys(E.Inputs) forward loop
             const Port_Name := Convert_Name::Input(Name);
-            const Port_Type := Lower(Type);
+            const Port_Type := Lower(E.Inputs[Name]);
             const In_Port := VHDL::Port::In(Port_Name, Port_Type);
             Entity_Scope |= (Key => Name, Value => Ref(In_Port));
             Ports |= In_Port;
         end loop
 
         // Lower out ports
-        for each [Name => Type] of E.Outputs forward loop
+        for each Name of Keys(E.Outputs) forward loop
             const Port_Name := Convert_Name::Output(Name);
-            const Port_Type := Lower(Type);
+            const Port_Type := Lower(E.Outputs[Name]);
             const Out_Port := VHDL::Port::Out(Port_Name, Port_Type);
             Outputs |= (Key => Name, Value => Out_Port);
             Ports |= Out_Port;
         end loop
 
         // Add registers
-        for each [Name => Reg] of E.Registers forward loop
-            const Reg_Name := Convert_Name::Register(Name);
+        for each Reg of E.Registers forward loop
+            const Reg_Name := Convert_Name::Register(Reg.Name);
             const Reg_Type := Lower(Reg.Type);
             var Reg_Init : optional VHDL::Literal := null;
             if Reg.Init not null then
                 Reg_Init := Lower_Lit(Reg.Init);
             end if
             const Register := VHDL::Register::Create(Reg_Name, Reg_Type, Reg_Init);
-            Entity_Scope |= (Key => Name, Value => Ref(Register));
+            Entity_Scope |= (Key => Reg.Name, Value => Ref(Register));
             Registers |= Register;
         end loop
 
@@ -565,7 +565,8 @@ class SailGate::Lowering::VHDL_Lowering is
                     end loop
 
                     // Map inputs
-                    for each [Field => Expr] of Inst.Inputs forward loop
+                    for each Field of Keys(Inst.Inputs) forward loop
+                        ref Expr => Inst.Inputs[Field];
                         const Input_Name := Convert_Name::Input(Field);
                         const Lowered_Expr := Lower(Expr, Entity_Scope,
                             Empty_Visitor);
@@ -586,7 +587,8 @@ class SailGate::Lowering::VHDL_Lowering is
                     end loop
 
                     // Map outputs
-                    for each [Name => Type] of Target_Entity.Outputs forward loop
+                    for each Name of Keys(Target_Entity.Outputs) forward loop
+                        ref Type => Target_Entity.Outputs[Name];
                         const Output_Name := Convert_Name::Output(Name);
                         const Wire_Name := Convert_Name::Inst_Out_Wire(
                             Inst.Name, Name);
@@ -605,7 +607,8 @@ class SailGate::Lowering::VHDL_Lowering is
         end loop
 
         // Generate implicit processes
-        for each [Name => Proc] of E.Impl forward loop
+        for each Proc of E.Impl forward loop
+            const Name := Proc.Dom.Name;
             case Proc.Dom.Kind of
                 [#async] =>
                     var SL := Async_Visitor::Create();
@@ -649,8 +652,9 @@ class SailGate::Lowering::VHDL_Lowering is
         end loop
 
         // Drive output values
-        for each [Name => Value] of E.Output_Values forward loop
+        for each Name of Keys(E.Output_Values) forward loop
             {Name in Outputs}
+            ref Value => E.Output_Values[Name];
             const Port := Outputs[Name];
             const Out_Val := Lower(Value, Entity_Scope, Empty_Visitor);
             Async_Region |= VHDL::Assignment::Create(Ref(Port), Out_Val);

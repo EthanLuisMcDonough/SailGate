@@ -1,0 +1,26 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: si-var-input
+
+import SailGate::Prelude::*;
+
+interface Test<> is
+    const C : Logic;
+    func Run(A : Logic; B : Logic) -> Test;
+end interface Test
+
+class Test is
+exports
+    func Run(A : Logic; B : Logic) -> Test is
+        var Thingy : Logic := '0';
+
+        // CHECK: 20:9
+        // CHECK: Unrecognized ParaSail language construct
+        block
+            Thingy := '1';
+        end block
+
+        return (C => A and B);
+    end func Run
+end class Test

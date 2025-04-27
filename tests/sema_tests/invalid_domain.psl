@@ -1,0 +1,26 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: si-invalid-domain
+
+import SailGate::Prelude::*;
+
+interface Test<D : Domain; E : Domain> is
+    const C : Logic<D>;
+    func Run(A : Logic<D>; B : Logic<E>) -> Test;
+end interface Test
+
+class Test is
+exports
+    func Run(A : Logic<D>; B : Logic<E>) -> Test is
+        var Thingy : Logic<E> := '0';
+
+        // CHECK: 21:13
+        // CHECK: Value with incorrect clock domain
+        if A == '1' then
+            Thingy := B;
+        end if
+
+        return (C => not A);
+    end func Run
+end class Test

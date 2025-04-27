@@ -1,4 +1,4 @@
-func Main(Args : Basic_Array<Univ_String>) is
+func Main(Out_Dir : Univ_String; Separator : Univ_String) is
     var E := SailGate::Sema::Extractor::Create();
     var Env := PSC::Reflection::Environment::Get_Current_Env();
     Load(E, Env);
@@ -13,7 +13,13 @@ func Main(Args : Basic_Array<Univ_String>) is
     var System := SailGate::Lowering::VHDL_Lowering::Lower(Validator.Entities);
     var IO := PSL::Core::IO::Get_IO();
     for each [File => Contents] of Gen_Design(System) forward loop
-        var OS := PSL::Core::File_Output_Stream::Create(IO, File);
-        Print(OS, Contents);
+        if Out_Dir == "-" then
+            Println("\n\n-- FILE " | File);
+            Println(Contents);
+        else
+            const Full_File_Name := Out_Dir | Separator | File;
+            var OS := PSL::Core::File_Output_Stream::Create(IO, Full_File_Name);
+            Print(OS, Contents);
+        end if
     end loop
 end func Main

@@ -1,4 +1,5 @@
 init_env.sh
+__pycache__
 *.lst
 *.err
 local_test

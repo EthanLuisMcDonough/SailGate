@@ -1,5 +1,5 @@
 {
-    "prefix": "./src",
+    "prefix": "../src",
     "headers": [
         "sailgate.psi",
         "names.psi",

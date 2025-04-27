@@ -105,11 +105,6 @@ exports
             Ln |= "(binary: " | To_String(Binary_Op(T)) | ")";
         end if
 
-        const OG_Binary := Original_Binary_Op(T);
-        if OG_Binary not null then
-            Ln |= "(og binary: " | To_String(OG_Binary) | ")";
-        end if
-
         const Loc := Sema::Util::Find_Tree_Source(T);
         if Loc not null then
             Ln |= " : " | To_String(Loc)

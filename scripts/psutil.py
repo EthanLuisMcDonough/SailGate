@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import subprocess
 import argparse
 import pathlib
@@ -8,12 +7,24 @@ import glob
 import sys
 import os
 
+from dataclasses import dataclass
+from typing import List, Optional
+
 PARASAIL_ROOT_ENV_NAME = "PARASAIL_ROOT"
 CONFIG_CMD = "command"
 CONFIG_HEADERS = "headers"
 CONFIG_SRC = "sources"
 CONFIG_PREFIX = "prefix"
-CONFIG_SEND_EXIT = "send_exit"
+CONFIG_ARGS = "args"
+
+# Details read from a project config
+@dataclass
+class ParaSailConfig:
+    headers: List[str]
+    sources: List[str]
+    args: Optional[List[str]] = None
+    command: Optional[str] = None
+    prefix: Optional[str] = None
 
 def eprint(str):
     print("ERROR: " + str, file=sys.stderr)
@@ -21,10 +32,6 @@ def eprint(str):
 def fatal_error(str):
     eprint(str)
     sys.exit(2)
-
-def require_prop(config, property):
-    if property not in config:
-        fatal_error("Propety `" + property + "` not found in config")
 
 # Find ParaSail root directory
 def find_parasail_dir():
@@ -52,7 +59,14 @@ def find_parasail_dir():
                 PARASAIL_ROOT_ENV_NAME + " in your environment " +
                 "or add interp.csh or parasail_main to your PATH")
 
-def run_parasail(config, config_path, extra_sources = [], debug = False, outfile = None):
+def load_config(file_path: str) -> ParaSailConfig:
+    with open(file_path, "r") as file:
+        config = json.load(file)
+        return ParaSailConfig(**config)
+
+def run_parasail(config: ParaSailConfig, config_path: str,
+                 extra_sources: List[str] = [],
+                 debug: bool = False, outfile = None):
     PARASAIL_ROOT = find_parasail_dir()
     PARASAIL_LIBS = os.path.join(PARASAIL_ROOT, "lib")
     PARASAIL_STD = os.path.join(PARASAIL_LIBS, "aaa.psi")
@@ -62,15 +76,15 @@ def run_parasail(config, config_path, extra_sources = [], debug = False, outfile
 
     full_path = os.path.realpath(config_path)
     source_dir = os.path.abspath(os.path.join(full_path, os.path.pardir))
-    if CONFIG_PREFIX in config:
-        prefix = config[CONFIG_PREFIX]
-        if os.path.isabs(prefix):
-            source_dir = prefix
+
+    if config.prefix is not None:
+        if os.path.isabs(config.prefix):
+            source_dir = config.prefix
         else:
-            source_dir = os.path.abspath(os.path.join(source_dir, prefix))
+            source_dir = os.path.abspath(os.path.join(source_dir, config.prefix))
 
     sources = [PARASAIL_STD, PARASAIL_REFLECTION_PSI, PARASAIL_REFLECTION_PSL]
-    for source in (config[CONFIG_HEADERS] + config[CONFIG_SRC]):
+    for source in (config.headers + config.sources):
         sources += glob.glob(os.path.join(source_dir, source), recursive=True)
 
     for source in extra_sources:
@@ -81,8 +95,12 @@ def run_parasail(config, config_path, extra_sources = [], debug = False, outfile
 
     if debug:
         sources += ["-debug", "on"]
-    if CONFIG_CMD in config:
-        sources += ["-command", config[CONFIG_CMD]]
+    if config.command is not None:
+        cmd_list = ["-command", config.command]
+        if config.args is not None:
+            for arg in config.args:
+                cmd_list.append(arg)
+        sources += cmd_list
 
     if outfile is not None:
         output = subprocess.run([PARASAIL_EXE] + sources, stdout=subprocess.PIPE,
@@ -91,33 +109,3 @@ def run_parasail(config, config_path, extra_sources = [], debug = False, outfile
             f.write(output)
     else:
         subprocess.run([PARASAIL_EXE] + sources)
-
-arg_parser = argparse.ArgumentParser(prog="ParaSail config tool",
-    description="Run ParaSail programs based on a specified config")
-
-arg_parser.add_argument("config_file", type=pathlib.Path,
-                        help="The path to the JSON config file")
-arg_parser.add_argument("--cmd", "-c", help="Override main command")
-arg_parser.add_argument("--args", "-a", help="Override command line arguments", nargs="*")
-arg_parser.add_argument("--nocmd", "-nc", action="store_true", help="Don't run default command")
-arg_parser.add_argument("--files", "-f", nargs='*', type=pathlib.Path,
-                        help="Additional files to include in project")
-arg_parser.add_argument("--debug", "-d", action="store_true",
-                        help="Run ParaSail in debug mode")
-arg_parser.add_argument("--stdout", "-o", type=pathlib.Path,
-                        help="Pipe all output into specified file")
-
-cli_args = arg_parser.parse_args()
-
-with open(cli_args.config_file, "r") as file:
-    config = json.load(file)
-    if cli_args.nocmd and (cli_args.args or cli_args.cmd):
-        fatal_error("--nocmd cannot be used with --args or --cmd")
-    if cli_args.cmd is not None:
-        config[CONFIG_CMD] = cli_args.cmd
-    if cli_args.nocmd:
-        config.pop(CONFIG_CMD, None)
-    sources = [] if cli_args.files is None else cli_args.files
-    require_prop(config, CONFIG_HEADERS)
-    require_prop(config, CONFIG_SRC)
-    run_parasail(config, cli_args.config_file, sources, cli_args.debug, cli_args.stdout)

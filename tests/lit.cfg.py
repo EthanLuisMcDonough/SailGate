@@ -7,11 +7,14 @@ test_dir = os.path.dirname(__file__)
 shared_dir = os.path.join(test_dir, "shared")
 base_dir = os.path.abspath(os.path.join(test_dir, os.pardir))
 
-psrun_script = os.path.join(base_dir, "psrun.py")
-sailgate_config = os.path.join(base_dir, "sailgate.json")
-builder_config = os.path.join(base_dir, "builder.json")
+scripts = os.path.join(base_dir, "scripts")
+configs = os.path.join(base_dir, "project_configs")
+
+psrun_script = os.path.join(scripts, "psrun.py")
+driver_script = os.path.join(scripts, "sailgate_driver.py")
+sailgate_config = os.path.join(configs, "sailgate.json")
+builder_config = os.path.join(configs, "builder.json")
 stub_entry = os.path.join(shared_dir, "stub.psl")
-driver_script = os.path.join(base_dir, "sailgate.sh")
 
 # TODO: allow FileCheck location to be specified.
 #       Right now, the tests assume FileCheck is in path
@@ -40,4 +43,4 @@ config.substitutions.append(("%sailgate_builder", "python3 " + psrun_script +
                              " " + builder_config + " --cmd Test -f " + suffix))
 
 # %sailgate: Runs driver with test file and checks output
-config.substitutions.append(("%sailgate", driver_script + suffix))
+config.substitutions.append(("%sailgate", "python3 " + driver_script + suffix))

@@ -1,0 +1,37 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: ss-counter
+
+import SailGate::Prelude::*, *;
+
+interface Counter_2Bit<D : Domain {Clock(D)}> is
+    const Value : Vec<2, D>;
+    func Run() -> Counter_2Bit;
+end interface Counter_2Bit
+
+class Counter_2Bit is
+exports
+    func Run() -> Counter_2Bit is
+        var Counter : UVec<2, D> := 0;
+        Counter := Counter + 1;
+        return (Value => Logic_Vec(Counter));
+    end func Run
+end class Counter_2Bit
+
+// CHECK:  entity Entity_Counter_2bit is
+// CHECK:      port(Dom_D_Clk : in STD_LOGIC;
+// CHECK:           O_Value : out STD_LOGIC_VECTOR(1 downto 0));
+// CHECK:  end entity;
+
+// CHECK:  architecture Entity_Counter_2bit_Behavior of Entity_Counter_2bit is
+// CHECK:      signal Reg_Counter: UNSIGNED(1 downto 0) := "00";
+// CHECK:  begin
+// CHECK:      O_Value <= STD_LOGIC_VECTOR(Reg_Counter);
+// CHECK:      Implicit_Clock_D: process(Dom_D_Clk)
+// CHECK:      begin
+// CHECK:          if rising_edge(Dom_D_Clk) then
+// CHECK:              Reg_Counter <= (Reg_Counter + "01");
+// CHECK:          end if;
+// CHECK:      end process Implicit_Clock_D;
+// CHECK:  end architecture;

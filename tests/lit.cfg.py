@@ -43,4 +43,5 @@ config.substitutions.append(("%sailgate_builder", "python3 " + psrun_script +
                              " " + builder_config + " --cmd Test -f " + suffix))
 
 # %sailgate: Runs driver with test file and checks output
-config.substitutions.append(("%sailgate", "python3 " + driver_script + suffix))
+config.substitutions.append(("%sailgate", "python3 " + driver_script +
+                             " -o - " + suffix))

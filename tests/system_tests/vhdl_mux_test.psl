@@ -1,0 +1,69 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: ss-mux
+
+import SailGate::Prelude::*, *;
+
+interface Mux_4<Dom : Domain> is
+    const Output : Vec<4, Dom>;
+
+    func Run(Select : Vec<2, Dom>;
+        A : Vec<4, Dom>; B : Vec<4, Dom>;
+        C : Vec<4, Dom>; D : Vec<4, Dom>) -> Mux_4;
+end interface Mux_4
+
+class Mux_4 is
+exports
+    func Run(Select : Vec<2, Dom>;
+        A : Vec<4, Dom>; B : Vec<4, Dom>;
+        C : Vec<4, Dom>; D : Vec<4, Dom>) -> Mux_4
+    is
+        var Out_Val : Vec<4, Dom> := 0;
+
+        case Switch(Select) of
+            ["00"] =>
+                Out_Val := A;
+            ["01"] =>
+                Out_Val := B;
+            ["10"] =>
+                Out_Val := C;
+            ["11"] =>
+                Out_Val := D;
+        end case
+
+        return (Output => Out_Val);
+    end func Run
+end class Mux_4
+
+// CHECK: entity Entity_Mux_4 is
+// CHECK:     port(I_A : in STD_LOGIC_VECTOR(3 downto 0);
+// CHECK:          I_B : in STD_LOGIC_VECTOR(3 downto 0);
+// CHECK:          I_C : in STD_LOGIC_VECTOR(3 downto 0);
+// CHECK:          I_D : in STD_LOGIC_VECTOR(3 downto 0);
+// CHECK:          I_Select : in STD_LOGIC_VECTOR(1 downto 0);
+// CHECK:          O_Output : out STD_LOGIC_VECTOR(3 downto 0));
+// CHECK: end entity;
+
+// CHECK: architecture Entity_Mux_4_Behavior of Entity_Mux_4 is
+// CHECK:     signal Reg_Out_Val: STD_LOGIC_VECTOR(3 downto 0) := "0000";
+// CHECK:     signal Internal_0: STD_LOGIC_VECTOR(1 downto 0);
+// CHECK: begin
+// CHECK:     O_Output <= Reg_Out_Val;
+// CHECK:     Implicit_Async_Dom: process(I_Select, I_A, I_B, I_C, I_D)
+// CHECK:     begin
+// CHECK:         Internal_0 <= I_Select;
+// CHECK:         case Internal_0 is
+// CHECK:             when "00" =>
+// CHECK:                 Reg_Out_Val <= I_A;
+// CHECK:             when "01" =>
+// CHECK:                 Reg_Out_Val <= I_B;
+// CHECK:             when "10" =>
+// CHECK:                 Reg_Out_Val <= I_C;
+// CHECK:             when "11" =>
+// CHECK:                 Reg_Out_Val <= I_D;
+// CHECK:             when others =>
+// CHECK:                 null;
+// CHECK:         end case;
+// CHECK:     end process Implicit_Async_Dom;
+// CHECK: end architecture;

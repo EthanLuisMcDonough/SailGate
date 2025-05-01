@@ -1,0 +1,43 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: li-if
+
+import SailGate::Prelude::*, *;
+
+interface If_Test<D : Domain {Clock(D)}> is
+    const C : Logic<D>;
+    func Run(A : Logic<D>; B : Logic<D>) -> If_Test;
+end interface If_Test
+
+class If_Test is
+exports
+    func Run(A : Logic<D>; B : Logic<D>) -> If_Test is
+        var Reg : Logic<D> := '0';
+        // CHECK: if rising_edge(Dom_D_Clk) then
+        // CHECK:     if (I_A = I_B) then
+        // CHECK:         Reg_Reg <= '1';
+        // CHECK:     elsif (I_A > I_B) then
+        // CHECK:         Reg_Reg <= I_A;
+        // CHECK:     else
+        // CHECK:         Reg_Reg <= '0';
+        // CHECK:     end if;
+        if A == B then
+            Reg := '1';
+        elsif A > B then
+            Reg := A;
+        else
+            Reg := '0';
+        end if
+
+        // CHECK: if (I_A = '1') then
+        // CHECK:     Reg_Reg <= (Reg_Reg and I_B);
+        // CHECK: end if;
+        if A == '1' then
+            Reg := Reg and B;
+        end if
+        // CHECK: end if;
+
+        return (C => Reg);
+    end func Run
+end class If_Test

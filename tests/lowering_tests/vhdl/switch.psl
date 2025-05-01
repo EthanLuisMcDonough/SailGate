@@ -1,0 +1,40 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: li-switch
+
+import SailGate::Prelude::*, *;
+
+interface Switch_Test<D : Domain {Clock(D)}> is
+    const C : Vec<2, D>;
+    func Run(A : Vec<3, D>; B : Vec<2, D>) -> Switch_Test;
+end interface Switch_Test
+
+class Switch_Test is
+exports
+    func Run(A : Vec<3, D>; B : Vec<2, D>) -> Switch_Test is
+        var Reg : Vec<2, D> := 0;
+        // CHECK: Internal_0 <= (I_A & I_B xor "10101");
+        // CHECK: case Internal_0 is
+        // CHECK:     when "00010" | "00100" =>
+        // CHECK:         Reg_Reg <= "00";
+        // CHECK:     when "01010" =>
+        // CHECK:         Reg_Reg <= "01";
+        // CHECK:     when "10000" =>
+        // CHECK:         Reg_Reg <= "10";
+        // CHECK:     when others =>
+        // CHECK:         Reg_Reg <= "11";
+        // CHECK: end case;
+        case Switch((A | B) xor "10101") of
+            [2 | "00100"] => 
+                Reg := 0;
+            [10] =>
+                Reg := 1;
+            ["10000"] =>
+                Reg := 2;
+            [..] =>
+                Reg := 3;
+        end case
+        return (C => Reg);
+    end func Run
+end class Switch_Test

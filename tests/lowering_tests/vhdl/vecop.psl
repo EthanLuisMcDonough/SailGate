@@ -1,0 +1,27 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: li-vecop
+
+import SailGate::Prelude::*, *;
+
+interface Vecop_Test<> is
+    const O : Vec<5>;
+    const L : Logic;
+    func Run(A : Vec<10>; B : Vec<5>) -> Vecop_Test;
+end interface Vecop_Test
+
+class Vecop_Test is
+exports
+    func Run(A : Vec<10>; B : Vec<5>) -> Vecop_Test is
+        // CHECK: I_A & I_B
+        const W1 : Vec<15> := A | B;
+        // CHECK: W_W1(8 to 12)
+        const W2 : Vec<5> := Range::<8, 12>::Slice(W1);
+        // CHECK: I_A(3 downto 2) & I_B(2)
+        const W3 : Vec<3> := Range::<3, 2>::Slice(A) | B[2];
+        // CHECK: I_B(1 to 3) & I_A(5 downto 3)
+        const W4 : Vec<6> := Range::<1, 3>::Slice(B) | Range::<5, 3>::Slice(A);
+        return (O => W2, L => A[3]);
+    end func Run
+end class Vecop_Test

@@ -1,0 +1,31 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: li-register
+
+import SailGate::Prelude::*, *;
+
+interface Register_Test<Dom : Domain {Clock(Dom)}> is
+    const A : Logic;
+    func Run() -> Register_Test;
+end interface Register_Test
+
+class Register_Test is
+exports
+    func Run() -> Register_Test is
+        // CHECK: signal Reg_A: STD_LOGIC := '0';
+        // CHECK: signal Reg_B: UNSIGNED(4 downto 0) := "00010";
+        // CHECK: signal Reg_C: UNSIGNED(4 downto 0);
+        // CHECK: signal Reg_E: SIGNED(4 downto 0) := "11110";
+        // CHECK: signal W_D: UNSIGNED(4 downto 0);
+        var A : Logic := '0'
+        var B : UVec<5, Dom> := 2;
+        var C : UVec<5, Dom>;
+        // CHECK: W_D <= (Reg_B and Reg_C)
+        const D := B and C;
+        var E : IVec<5, Dom> := -2;
+        // CHECK: Reg_B <= (W_D + Reg_C)
+        B := D + C;
+        return (A => '0');
+    end func Run
+end class Register_Test

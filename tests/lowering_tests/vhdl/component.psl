@@ -1,0 +1,90 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: li-component
+
+import SailGate::Prelude::*, *;
+
+interface Component_Entity
+    <A : Domain {Clock(A)};
+     B : Domain {Clock(B)}>
+is
+    const Output_A : Logic<A>;
+    const Output_B : Logic<B>;
+    func Run(In_A : Logic<A>; In_B : Logic<B>) -> Component_Entity;
+end interface Component_Entity
+
+class Component_Entity is
+exports
+    func Run(In_A : Logic<A>; In_B : Logic<B>) -> Component_Entity is
+        return (Output_A => not In_A, Output_B => not In_B);
+    end func Run
+end class Component_Entity
+
+interface Inst_Test
+    <A : Domain {Reset(A)};
+     B : Domain {Clk_Rst_En(B)}>
+is
+    const Output_A : Logic<A>;
+    const Output_B : Logic<B>;
+    func Run(In_A : Logic<A>; In_B : Logic<B>) -> Inst_Test;
+end interface Inst_Test
+
+class Inst_Test is
+    // CHECK: component Entity_Component_Entity is
+    // CHECK:     port(Dom_A_Clk : in STD_LOGIC;
+    // CHECK:          Dom_B_Clk : in STD_LOGIC;
+    // CHECK:          I_In_A : in STD_LOGIC;
+    // CHECK:          I_In_B : in STD_LOGIC;
+    // CHECK:          O_Output_A : out STD_LOGIC;
+    // CHECK:          O_Output_B : out STD_LOGIC);
+    // CHECK: end component;
+    // CHECK: signal Inst_Out_Inst_1_Output_A: STD_LOGIC;
+    // CHECK: signal Inst_Out_Inst_1_Output_B: STD_LOGIC;
+    // CHECK: signal Inst_Out_Inst_2_Output_A: STD_LOGIC;
+    // CHECK: signal Inst_Out_Inst_2_Output_B: STD_LOGIC;
+    // CHECK: signal Inst_In_Inst_3_In_A: STD_LOGIC;
+    // CHECK: signal Inst_In_Inst_3_In_B: STD_LOGIC;
+    // CHECK: signal Inst_Out_Inst_3_Output_A: STD_LOGIC;
+    // CHECK: signal Inst_Out_Inst_3_Output_B: STD_LOGIC;
+    type Comp_1 is Component_Entity<A => B, B => A>;
+    type Comp_2 is Component_Entity<A, B>;
+exports
+    func Run(In_A : Logic<A>; In_B : Logic<B>) -> Inst_Test is
+        // CHECK: Inst_Inst_1: Entity_Component_Entity
+        // CHECK:     port map (
+        // CHECK:         Dom_A_Clk => Dom_B_Clk,
+        // CHECK:         Dom_B_Clk => Dom_A_Clk,
+        // CHECK:         I_In_A => I_In_B,
+        // CHECK:         I_In_B => I_In_A,
+        // CHECK:         O_Output_A => Inst_Out_Inst_1_Output_A,
+        // CHECK:         O_Output_B => Inst_Out_Inst_1_Output_B
+        // CHECK:     );
+        const Inst_1 := Comp_1::Run(In_A => In_B, In_B => In_A);
+        // CHECK: Inst_Inst_2: Entity_Component_Entity
+        // CHECK:     port map (
+        // CHECK:         Dom_A_Clk => Dom_A_Clk,
+        // CHECK:         Dom_B_Clk => Dom_B_Clk,
+        // CHECK:         I_In_A => I_In_A,
+        // CHECK:         I_In_B => I_In_B,
+        // CHECK:         O_Output_A => Inst_Out_Inst_2_Output_A,
+        // CHECK:         O_Output_B => Inst_Out_Inst_2_Output_B
+        // CHECK:     );
+        const Inst_2 := Comp_2::Run(In_A => In_A, In_B => In_B);
+        // CHECK: Inst_In_Inst_3_In_A <= (Inst_Out_Inst_1_Output_B and Inst_Out_Inst_2_Output_A);
+        // CHECK: Inst_In_Inst_3_In_B <= (Inst_Out_Inst_1_Output_A or Inst_Out_Inst_2_Output_B);
+        // CHECK: Inst_Inst_3: Entity_Component_Entity
+        // CHECK:     port map (
+        // CHECK:         Dom_A_Clk => Dom_A_Clk,
+        // CHECK:         Dom_B_Clk => Dom_B_Clk,
+        // CHECK:         I_In_A => Inst_In_Inst_3_In_A,
+        // CHECK:         I_In_B => Inst_In_Inst_3_In_B,
+        // CHECK:         O_Output_A => Inst_Out_Inst_3_Output_A,
+        // CHECK:         O_Output_B => Inst_Out_Inst_3_Output_B
+        // CHECK:     );
+        const Inst_3 := Comp_2::Run(
+            In_A => Inst_1.Output_B and Inst_2.Output_A,
+            In_B => Inst_1.Output_A or Inst_2.Output_B)
+        return (Output_A => Inst_3.Output_A, Output_B => Inst_3.Output_B);
+    end func Run
+end class Inst_Test

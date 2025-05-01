@@ -1,0 +1,68 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: li-process
+
+import SailGate::Prelude::*, *;
+
+interface Process_Test
+    <A_Dom : Domain;
+     B_Dom : Domain {Clock(B_Dom)};
+     C_Dom : Domain {Reset(C_Dom)};
+     D_Dom : Domain {Clk_Rst_En(D_Dom)}>
+is
+    const Out_A : Logic<A_Dom>;
+    const Out_B : Logic<B_Dom>;
+    const Out_C : Logic<C_Dom>;
+    const Out_D : Logic<D_Dom>;
+    func Run() -> Process_Test;
+end interface Process_Test
+
+class Process_Test is
+exports
+    func Run() -> Process_Test is
+        var Reg_A : UVec<16, A_Dom> := 0;
+        var Reg_B : UVec<16, B_Dom> := 0;
+        var Reg_C : UVec<16, C_Dom> := 0;
+        var Reg_D : UVec<16, D_Dom> := 0;
+
+        Reg_A := Reg_A + 1;
+        Reg_B := Reg_B + 1;
+        Reg_C := Reg_C + 1;
+        Reg_D := Reg_D + 1;
+
+        // CHECK: Implicit_Async_A_Dom: process(Reg_Reg_A)
+        // CHECK: begin
+        // CHECK:     Reg_Reg_A <= (Reg_Reg_A + "0000000000000001");
+        // CHECK: end process Implicit_Async_A_Dom;
+        // CHECK: Implicit_Clock_B_Dom: process(Dom_B_Dom_Clk)
+        // CHECK: begin
+        // CHECK:     if rising_edge(Dom_B_Dom_Clk) then
+        // CHECK:         Reg_Reg_B <= (Reg_Reg_B + "0000000000000001");
+        // CHECK:     end if;
+        // CHECK: end process Implicit_Clock_B_Dom;
+        // CHECK: Implicit_Reset_C_Dom: process(Dom_C_Dom_Clk)
+        // CHECK: begin
+        // CHECK:     if rising_edge(Dom_C_Dom_Clk) then
+        // CHECK:         if (Dom_C_Dom_Reset = '1') then
+        // CHECK:             Reg_Reg_C <= "0000000000000000";
+        // CHECK:         else
+        // CHECK:             Reg_Reg_C <= (Reg_Reg_C + "0000000000000001");
+        // CHECK:         end if;
+        // CHECK:     end if;
+        // CHECK: end process Implicit_Reset_C_Dom;
+        // CHECK: Implicit_Enable_D_Dom: process(Dom_D_Dom_Clk)
+        // CHECK: begin
+        // CHECK:     if rising_edge(Dom_D_Dom_Clk) then
+        // CHECK:         if (Dom_D_Dom_Reset = '1') then
+        // CHECK:             Reg_Reg_D <= "0000000000000000";
+        // CHECK:         elsif (Dom_D_Dom_En = '1') then
+        // CHECK:             Reg_Reg_D <= (Reg_Reg_D + "0000000000000001");
+        // CHECK:         end if;
+        // CHECK:     end if;
+        // CHECK: end process Implicit_Enable_D_Dom;
+
+        return (Out_A => Reg_A[0], Out_B => Reg_B[1],
+            Out_C => Reg_C[2], Out_D => Reg_D[4]);
+    end func Run
+end class Process_Test

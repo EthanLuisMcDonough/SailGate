@@ -1,0 +1,28 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: li-unary
+
+import SailGate::Prelude::*, *;
+
+interface Un_Test<> is
+    const Bit_Out : Logic;
+    const Int_Out : IVec<5>;
+    func Run(Bit_In : Logic; Int_In : IVec<5>) -> Un_Test;
+end interface Un_Test
+
+class Un_Test is
+exports
+    func Run(Bit_In : Logic; Int_In : IVec<5>) -> Un_Test is
+        var B_Val : Logic := '0';
+        if not (Bit_In == '0') then
+            B_Val := '1';
+        end if
+        return (
+            // CHECK: (not (not (not Reg_B_Val)))
+            Bit_Out => not not not B_Val,
+            // CHECK: (not (-I_Int_In))
+            Int_Out => not -Int_In);
+        // CHECK: (not (I_Bit_In = '0'))
+    end func Run
+end class Un_Test

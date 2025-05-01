@@ -1,0 +1,36 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: li-port
+
+import SailGate::Prelude::*, *;
+
+// CHECK: I_F : in STD_LOGIC_VECTOR(1 downto 0);
+// CHECK: I_G : in SIGNED(0 to 3);
+// CHECK: I_H : in STD_LOGIC_VECTOR(2 to 4);
+// CHECK: I_I : in UNSIGNED(0 downto 0);
+// CHECK: O_A : out STD_LOGIC;
+// CHECK: O_B : out STD_LOGIC_VECTOR(0 to 2);
+// CHECK: O_C : out UNSIGNED(13 downto 4);
+// CHECK: O_D : out SIGNED(4 to 7);
+// CHECK: O_E : out STD_LOGIC_VECTOR(11 downto 0)
+
+interface Port_Test<> is
+    const A : Logic;
+    {Align(#up)} const B : Vec<3>;
+    {Align(Offset => 4)} const C : UVec<10>;
+    {Align(#up, 4)} const D : IVec<4>;
+    const E : Vec<12>;
+
+    func Run(F : Vec<2>; {Align(#up)} G : IVec<4>;
+        {Align(#up, 2)} H : Vec<3>; I : UVec<1>) -> Port_Test;
+end interface Port_Test
+
+class Port_Test is
+exports
+    func Run(F : Vec<2>; {Align(#up)} G : IVec<4>;
+        {Align(#up, 2)} H : Vec<3>; I : UVec<1>) -> Port_Test
+    is
+        return (A => '0', B => 0, C => 0, D => 0, E => 0);
+    end func Run
+end class Port_Test

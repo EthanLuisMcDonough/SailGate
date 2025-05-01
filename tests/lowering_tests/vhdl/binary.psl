@@ -1,0 +1,37 @@
+// RUN: %sailgate
+// RUN: %sailgate_check
+
+// TEST ID: li-binary
+
+import SailGate::Prelude::*, *;
+
+interface Bin_Test<> is
+    const Logic_Output : Logic;
+    const Vec_Output : Vec<3>;
+    const UVec_Output : UVec<3>;
+
+    func Run(A_Logic : Logic; B_Logic : Logic;
+        A_Vec : Vec<3>; B_Vec : Vec<3>;
+        A_UVec : UVec<3>; B_UVec : UVec<3>) -> Bin_Test;
+end interface Bin_Test
+
+class Bin_Test is
+exports
+    func Run(A_Logic : Logic; B_Logic : Logic;
+        A_Vec : Vec<3>; B_Vec : Vec<3>;
+        A_UVec : UVec<3>; B_UVec : UVec<3>) -> Bin_Test
+    is
+        var B_Val : Logic := '0';
+        if A_Vec == B_Vec and A_UVec >= B_UVec then
+            B_Val := '1';
+        end if
+        return (
+            // CHECK: ((I_A_Logic and I_B_Logic) xor (I_B_Logic or Reg_B_Val))
+            Logic_Output => (A_Logic and B_Logic) xor (B_Logic or B_Val),
+            // CHECK: ((not I_A_Vec) and I_B_Vec)
+            Vec_Output => not A_Vec and B_Vec,
+            // CHECK: ((SHIFT_LEFT(I_A_Uvec, 3) + "101") * I_B_Uvec)
+            UVec_Output => ((A_UVec << 3) + 5) * B_UVec);
+        // CHECK: ((I_A_Vec = I_B_Vec) and (I_A_Uvec >= I_B_Uvec))
+    end func Run
+end class Bin_Test

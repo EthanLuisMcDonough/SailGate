@@ -10,7 +10,7 @@ import SailGate::Names;
 import SailGate::Sema::IR_Builder::*;
 import SailGate::Sema::Control_Flow_Desc::*;
 
-class SailGate::Sema::Validator is
+class SailGate::Sema::Translator is
     type Entity_Result is Result<Univ_String, Sema_Error>;
     type Expr_Result is Result<IR::Expression+, Sema_Error>;
 
@@ -39,7 +39,7 @@ class SailGate::Sema::Validator is
     end func Check_Const_Field
 
     /// Walks top level binary operators. This will usually just be next_stmt_op
-    func Walk_Stmt_Binary(var V : Validator; var B : Entity_Builder;
+    func Walk_Stmt_Binary(var V : Translator; var B : Entity_Builder;
         T : Tree {Kind(T) == #binary}) -> optional Sema_Error
     is
         const Left := Nth_Operand(T, Tree::Binary_Left_Op);
@@ -214,7 +214,7 @@ class SailGate::Sema::Validator is
     end func Walk_Entity_Inst
 
     /// Walk object declarations. This includes registers, wires, and entity instances
-    func Walk_Obj_Decl(var V : Validator; var B : Entity_Builder;
+    func Walk_Obj_Decl(var V : Translator; var B : Entity_Builder;
         T : Tree {Kind(T) == #obj_decl}) -> optional Sema_Error
     is
         // Determine declaration type
@@ -462,7 +462,7 @@ class SailGate::Sema::Validator is
         Set_Returned(B);
     end func Walk_Return
 
-    func Walk_Tree(var V : Validator; var B : Entity_Builder;
+    func Walk_Tree(var V : Translator; var B : Entity_Builder;
         T : Tree) -> optional Sema_Error
     is
         const Invalid_Construct_Err : Sema_Error := (
@@ -486,7 +486,7 @@ class SailGate::Sema::Validator is
         end case
     end func Walk_Tree
 
-    func Walk_Body(var V : Validator; var B : Entity_Builder;
+    func Walk_Body(var V : Translator; var B : Entity_Builder;
         R : Reflection::Region) -> optional Sema_Error
     is
         for I in 1..Num_Trees(R) forward loop
@@ -499,7 +499,7 @@ class SailGate::Sema::Validator is
     end func Walk_Body
 
     /// Read domains and ports from module data
-    func First_Pass(var V : Validator; D : Extractor::Module_Desc) -> optional Sema_Error is
+    func First_Pass(var V : Translator; D : Extractor::Module_Desc) -> optional Sema_Error is
         var Builder := Entity_Builder::Create(D.Name, Decl_Source_Pos(D.Decl));
         const Decl_Src := Decl_Source_Pos(D.Decl);
 
@@ -661,7 +661,7 @@ class SailGate::Sema::Validator is
     end func First_Pass
 
     // Finalizes entity body
-    func Second_Pass(var V : Validator; var Pending : Pending_Data) -> optional Sema_Error is
+    func Second_Pass(var V : Translator; var Pending : Pending_Data) -> optional Sema_Error is
         ref var Builder => Pending.Builder;
         const Run_Region := Body_Region(Pending.Run.Decl)
 
@@ -679,11 +679,11 @@ class SailGate::Sema::Validator is
         V.Entities |= (Key => Entity.Name, Value => Entity);
     end func Second_Pass
 exports
-    func Create() -> Validator is
+    func Create() -> Translator is
         return (Pending_Entities => [], Entities => []);
     end func Create
 
-    func Check(var V : Validator; Ex : Extractor) -> optional Sema_Error is
+    func Check(var V : Translator; Ex : Extractor) -> optional Sema_Error is
         if |Ex.Entities| == 0 then
             return (Kind => #no_entity, Source => null);
         end if
@@ -709,7 +709,7 @@ exports
         end if
     end func Check
 
-    func Dump(V : Validator) is
+    func Dump(V : Translator) is
         for each [Name => Rep] of V.Entities loop
             Println("=== ENTITY " | Name | " ===");
             Println("Inputs: ");
@@ -724,4 +724,4 @@ exports
             end loop
         end loop
     end func Dump
-end class SailGate::Sema::Validator
+end class SailGate::Sema::Translator

@@ -51,21 +51,21 @@ exports
         const D := Hex[0];
 
         const M0 := not A and not B and not C and not D;
-        const M1 := not A and not B and not C and     D;
-        const M2 := not A and not B and     C and not D;
-        const M3 := not A and not B and     C and     D;
-        const M4 := not A and     B and not C and not D;
-        const M5 := not A and     B and not C and     D;
-        const M6 := not A and     B and     C and not D;
-        const M7 := not A and     B and     C and     D;
+        const M1 := not A and not B and not C and D;
+        const M2 := not A and not B and C and not D;
+        const M3 := not A and not B and C and D;
+        const M4 := not A and B and not C and not D;
+        const M5 := not A and B and not C and D;
+        const M6 := not A and B and C and not D;
+        const M7 := not A and B and C and D;
         const M8 := A and not B and not C and not D;
-        const M9 := A and not B and not C and     D;
-        const M10 := A and not B and     C and not D;
-        const M11 := A and not B and     C and     D;
-        const M12 := A and     B and not C and not D;
-        const M13 := A and     B and not C and     D;
-        const M14 := A and     B and     C and not D;
-        const M15 := A and     B and     C and     D;
+        const M9 := A and not B and not C and D;
+        const M10 := A and not B and C and not D;
+        const M11 := A and not B and C and D;
+        const M12 := A and B and not C and not D;
+        const M13 := A and B and not C and D;
+        const M14 := A and B and C and not D;
+        const M15 := A and B and C and D;
 
         const Seg0 := M1 or M4 or M11 or M13;
         const Seg1 := M5 or M6 or M11 or M12 or M14 or M15;

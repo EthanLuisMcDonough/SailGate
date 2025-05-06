@@ -15,7 +15,7 @@
         "sema/control_flow_desc.psi",
         "sema/reader.psi",
         "sema/ir_builder.psi",
-        "sema/validator.psi",
+        "sema/translator.psi",
         "sema/extractor.psi",
         "lowering/lowering.psi",
         "lowering/vhdl_lowering.psi",

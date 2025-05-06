@@ -1,6 +1,6 @@
 import SailGate::IR;
 import SailGate::Prelude;
-import SailGate::Sema::Validator;
+import SailGate::Sema::Translator;
 import SailGate::Builder::VHDL;
 import SailGate::Util::To_Binary_String;
 import SailGate::Util::From_Unsigned_String;
@@ -438,7 +438,7 @@ class SailGate::Lowering::VHDL_Lowering is
         return VHDL::Component::Create(Name, In_Ports, Out_Ports);
     end func Lower_Component
 
-    func Lower(Entities : Validator::Entity_Map;
+    func Lower(Entities : Translator::Entity_Map;
         System_Components : Component_Map;
         E : IR::Entity) -> VHDL::Entity
     is
@@ -675,7 +675,7 @@ exports
         end case
     end func Lower
 
-    func Lower(S : Validator::Entity_Map) -> VHDL::Design is
+    func Lower(S : Translator::Entity_Map) -> VHDL::Design is
         var Entities : Vector<VHDL::Entity> := [];
         var Components : Component_Map := [];
         for each [Name => Entity] of S {not Entity.Is_Top_Level} forward loop

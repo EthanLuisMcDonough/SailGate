@@ -3,11 +3,11 @@ import SailGate::Sema::*;
 import PSC::Reflection;
 
 /// Takes ParaSail AST and transforms it into validated SailGate IR
-interface SailGate::Sema::Validator<> is
+interface SailGate::Sema::Translator<> is
     type Entity_Map is Ordered_Map<Univ_String, Entity>;
     var Entities : Entity_Map;
 
-    func Create() -> Validator;
-    func Check(var V : Validator; Ex : Extractor) -> optional Sema_Error;
-    func Dump(V : Validator);
-end interface SailGate::Sema::Validator
+    func Create() -> Translator;
+    func Check(var V : Translator; Ex : Extractor) -> optional Sema_Error;
+    func Dump(V : Translator);
+end interface SailGate::Sema::Translator

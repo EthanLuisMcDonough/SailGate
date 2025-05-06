@@ -19,6 +19,7 @@ interface SailGate::Sema::Control_Flow_Desc<> is
             Conditional_Kind(T) == #if_stmt)}) -> If_Stmt_Desc;
     end interface If_Stmt_Desc
 
+    /// Helper class for parsing case trees into a simpler format
     interface Case_Desc<> is
         interface Pair<> is
             const Selector : Tree;

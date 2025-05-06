@@ -18,8 +18,11 @@ interface SailGate::Sema::Sema_Error<> is
     const Kind : Sema_Error_Kind;
     const Source : optional Reflection::Source_Position;
 
+    /// Returns a modified error with the provided source
     func With_Source(E : Sema_Error;
         New_Source : Reflection::Source_Position) -> Sema_Error;
+
+    /// Print out error message
     func Dump(E : Sema_Error);
 
     op "from_univ"(U : Univ_Enumeration {U in Sema_Error_Kind}) -> Sema_Error;

@@ -75,6 +75,7 @@ interface SailGate::IR<> is
         op "=?"(L, R : Type) -> Ordering;
     end interface Type
 
+    /// Register definition
     interface Register<> is
         const Type : Type;
         const Name : Univ_String;
@@ -94,6 +95,7 @@ interface SailGate::IR<> is
     abstract interface Concurrent_Def<> is
     end interface Concurrent_Def
 
+    /// Wire definition
     interface Wire<> implements Concurrent_Def<> is
         const Name : Univ_String;
         const Type : Type;
@@ -101,12 +103,14 @@ interface SailGate::IR<> is
         const Source : Pos;
     end interface Wire
 
+    /// Mapping from target to local clock domain
     interface Dom_Pair<> is
         const Target : Domain;
         const Local : Domain;
     end interface Dom_Pair
     type Instance_Dom_Map is Vector<Dom_Pair>;
 
+    /// Entity instantiation construct
     interface Instance<> implements Concurrent_Def<> is
         const Name : Univ_String;
         const Inputs : Expr_Map;
@@ -117,6 +121,7 @@ interface SailGate::IR<> is
 
     type Concurrent_Defs is Vector<Concurrent_Def+>;
 
+    /// Base class for literal values
     abstract interface Literal_Value<> is
         func To_String(L : Literal_Value) -> Univ_String;
     end interface Literal_Value
@@ -142,6 +147,7 @@ interface SailGate::IR<> is
     type Expr_Kind is Enum<[#ident, #inst_access, #literal,
         #binary, #unary, #slice, #index, #conversion]>
 
+    /// Expression base class
     abstract interface Expression<> is
         func Get_Type(E : Expression) -> Type;
         func To_String(E : Expression) -> Univ_String;
@@ -149,6 +155,7 @@ interface SailGate::IR<> is
         func Get_Kind(E : Expression) -> Expr_Kind;
     end interface Expression
 
+    /// Identifier expression
     interface Identifier<> implements Expression<> is
         const Name : Univ_String;
         const Type : Type;
@@ -160,6 +167,7 @@ interface SailGate::IR<> is
         func Get_Kind(I : Identifier) -> Expr_Kind is (#ident);
     end interface Identifier
 
+    /// Instance property access (e.g. My_Inst.Field)
     interface Inst_Access<> implements Expression<> is
         const Name : Univ_String;
         const Property : Univ_String;
@@ -173,6 +181,7 @@ interface SailGate::IR<> is
         func Get_Kind(I : Inst_Access) -> Expr_Kind is (#inst_access);
     end interface Inst_Access
 
+    /// Literal value expression
     interface Literal<> implements Expression<> is
         const Value : Literal_Value+;
         const Type : Type;
@@ -193,6 +202,7 @@ interface SailGate::IR<> is
     type Conversion_Op is Enum<[#to_uint, #to_int, #to_vec,
         #sync, #unsafe_cast]>;
 
+    /// Binary expression
     interface Binary<> implements Expression<> is
         const Left : Expression+;
         const Right : Expression+;
@@ -207,6 +217,7 @@ interface SailGate::IR<> is
         func Get_Kind(B : Binary) -> Expr_Kind is (#binary);
     end interface Binary
 
+    /// Unary expression
     interface Unary<> implements Expression<> is
         const Value : Expression+;
         const Op : Unary_Op;
@@ -220,6 +231,7 @@ interface SailGate::IR<> is
         func Get_Kind(U : Unary) -> Expr_Kind is (#unary);
     end interface Unary
 
+    /// Slice vector access
     interface Slice<> implements Expression<> is
         const Start : Univ_Integer;
         const End : Univ_Integer;
@@ -234,6 +246,7 @@ interface SailGate::IR<> is
         func Get_Kind(S : Slice) -> Expr_Kind is (#slice);
     end interface Slice
 
+    /// Vector index access
     interface Index<> implements Expression<> is
         const Index : Univ_Integer;
         const Value : Expression+;
@@ -247,6 +260,7 @@ interface SailGate::IR<> is
         func Get_Kind(I : Index) -> Expr_Kind is (#index);
     end interface Index
 
+    /// Type/domain conversion
     interface Conversion<> implements Expression<> is
         const Converted : Expression+;
         const To : Type;
@@ -273,6 +287,7 @@ interface SailGate::IR<> is
         const Body : Block;
     end interface Condition_Body
 
+    /// Assignment operation
     interface Assignment<> implements Statement<> is
         const Asignee : Expression+;
         const Value : Expression+;
@@ -282,6 +297,7 @@ interface SailGate::IR<> is
         func Get_Source(A : Assignment) -> Pos is (A.Source);
     end interface Assignment
 
+    /// If statement
     interface If_Chain<> implements Statement<> is
         const Dom : Domain;
         const Base : Condition_Body;
@@ -300,6 +316,7 @@ interface SailGate::IR<> is
         const Body : Block;
     end interface Case_Check
 
+    /// Case/of statement
     interface Switch_Case<> implements Statement<> is
         const Expr : Expression+;
         const Cases : Vector<Case_Check>;
@@ -313,6 +330,7 @@ interface SailGate::IR<> is
     abstract interface Process<> is
     end interface Process
 
+    /// Process bound to a domain
     interface Dom_Process<> implements Process<> is
         const Dom : Domain;
         const Body : Block;
@@ -324,6 +342,7 @@ interface SailGate::IR<> is
 
     type Processes is Vector<Process+>;
 
+    /// IR entity
     interface Entity<> is
         const Scope : Entity_Scope;
         const Name : Univ_String;

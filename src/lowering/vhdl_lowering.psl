@@ -180,6 +180,7 @@ class SailGate::Lowering::VHDL_Lowering is
         return Vhdl_Var;
     end func Lower_Inst_Access
 
+    /// Lowers binary operator into VHDL expression
     func Lower_Binary(B : IR::Binary; S : Scope; var V : Visitor+) -> VHDL::Expression+ is
         case B.Op of
             [#left_shift_op | #right_shift_op] =>
@@ -281,6 +282,7 @@ class SailGate::Lowering::VHDL_Lowering is
         return VHDL::Assignment::Create(Assignee, Value);
     end func Lower_Assignment
 
+    /// Lower if construct
     func Lower_If(I : IR::If_Chain; S : Scope; var V : Visitor+;
         var Regs : Vector<VHDL::Register>; var AS : Anon_Sig;
         var Block : VHDL::Block)
@@ -337,6 +339,7 @@ class SailGate::Lowering::VHDL_Lowering is
         Block |= VHDL::Switch::Create(Ref(Case_Signal), Cases, Default);
     end func Lower_Case
 
+    /// Creates a new "body" block and populates it with the lowered IR block
     func Lower_New_Body(B : IR::Block; S : Scope; var V : Visitor+;
         var Regs : Vector<VHDL::Register>; var AS : Anon_Sig) -> VHDL::Block
     is
@@ -345,6 +348,8 @@ class SailGate::Lowering::VHDL_Lowering is
         return Body;
     end func Lower_New_Body
 
+    /// Lowers the given IR block and appends each item to the given
+    /// VHDL block
     func Lower_Body(B : IR::Block; S : Scope; var V : Visitor+;
         var Regs : Vector<VHDL::Register>; var AS : Anon_Sig;
         var Body : VHDL::Block)
@@ -438,6 +443,7 @@ class SailGate::Lowering::VHDL_Lowering is
         return VHDL::Component::Create(Name, In_Ports, Out_Ports);
     end func Lower_Component
 
+    /// Lower an entire entity
     func Lower(Entities : Translator::Entity_Map;
         System_Components : Component_Map;
         E : IR::Entity) -> VHDL::Entity

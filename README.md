@@ -52,4 +52,5 @@ Directions for running SailGate's test suite are in the
 
 ## User Guide
 
-Read the [Introduction to SailGate tutorial](./docs/intro.md).
+Read the [Introduction to SailGate tutorial](./docs/intro.md). Example
+designs can be found inside the [examples directory](./examples).

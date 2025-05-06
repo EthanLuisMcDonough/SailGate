@@ -80,7 +80,7 @@ exports
 	is
 		return (Output_Val_1 => Input_Val_1 and Input_Val_2,
 			Output_Val_2 => Input_Val_1 or Input_Val_2);
-	end func Run`
+	end func Run
 end My_Entity
 ```
 
@@ -205,7 +205,7 @@ interface Counter_2Bit<D : Domain {Clock(D)}> is
 end interface Counter_2Bit
 
 class Counter_2Bit is
-exports`  
+exports
 	func Run() -> Counter_2Bit is
 		var Counter : UVec<2, D> := 0;
 		Counter := Counter + 1;
@@ -240,25 +240,25 @@ but case/of statements expect the selector to be wrapped in a call to
 `Switch`:
 
 ```
-`class Mux_4 is`  
-`exports`  
-	`func Run(Select : Vec<2, Dom>;`  
-			`A : Vec<4, Dom>; B : Vec<4, Dom>;`  
-			`C : Vec<4, Dom>; D : Vec<4, Dom>) -> Mux_4`  
-	`is`  
-			`var Out_Val : Vec<4, Dom> := 0;`
+class Mux_4 is
+exports
+	func Run(Select : Vec<2, Dom>;
+		A : Vec<4, Dom>; B : Vec<4, Dom>;
+		C : Vec<4, Dom>; D : Vec<4, Dom>) -> Mux_4
+	is
+		var Out_Val : Vec<4, Dom> := 0;
 
-			`case Switch(Select) of`  
-					`["00"] =>`  
-						`Out_Val := A;`  
-					`["01"] =>`  
-						`Out_Val := B;`  
-					`["10"] =>`  
-						`Out_Val := C;`  
-					`["11"] =>
-						Out_Val := D;
-			end case
-			return (Output => Out_Val);
+		case Switch(Select) of
+			["00"] =>
+				Out_Val := A;
+			["01"] =>
+				Out_Val := B;
+			["10"] =>
+				Out_Val := C;
+			["11"] =>
+				Out_Val := D;
+		end case
+		return (Output => Out_Val);
 	end func Run
 end class Mux_4
 ```
@@ -280,7 +280,7 @@ end interface Counter_User
 class Counter_User is
 	type Component is Counter<D>;
 exports
-	func Run() -> Counter_User is`  
+	func Run() -> Counter_User is
 		const Clock_Inst := Component::Run();
 		var Result : Logic<D>;
 

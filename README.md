@@ -43,7 +43,13 @@ use IEEE.NUMERIC_STD.ALL;
 ...
 ```
 
+
 ## Testing
 
 Directions for running SailGate's test suite are in the
 [tests](./tests) directory.
+
+
+## User Guide
+
+Read the [Introduction to SailGate tutorial](./docs/intro.md).

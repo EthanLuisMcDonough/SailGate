@@ -27,6 +27,10 @@ config.test_format = lit.formats.ShTest()
 
 suffix = " %s > %t 2>&1"
 
+parasail_root = os.getenv("PARASAIL_ROOT", None)
+if parasail_root is not None:
+    config.environment["PARASAIL_ROOT"] = parasail_root
+
 # %sailgate_typecheck: Runs check for simple type-based tests.
 #                      These tests exist to check how RTL types
 #                      can be used
